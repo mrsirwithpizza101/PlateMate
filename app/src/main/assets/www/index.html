@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#FF5A7A">
+<title>PlateMate</title>
+<style>
+:root{
+  --pink:#FF5A7A; --orange:#FF9F43; --yellow:#FFD23F; --green:#2ED47A; --teal:#1FC8C8;
+  --blue:#4D7CFE; --purple:#9B5DE5; --ink:#2B2340; --muted:#8A84A3; --bg:#FFF7F2; --card:#FFFFFF;
+  --radius:22px; --shadow:0 10px 30px rgba(43,35,64,.12);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--ink);
+  font-family:"Nunito","Quicksand",ui-rounded,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+button{font:inherit;border:none;background:none;color:inherit;cursor:pointer}
+input,textarea,select{font:inherit;color:inherit}
+#app{position:fixed;inset:0;display:flex;flex-direction:column;max-width:520px;margin:0 auto;background:var(--bg)}
+
+/* header */
+.top{padding:14px 18px 10px;display:flex;align-items:center;justify-content:space-between;
+  background:linear-gradient(120deg,var(--pink),var(--orange),var(--pink));background-size:200% 200%;
+  animation:shimmer 8s ease infinite;color:#fff;border-radius:0 0 26px 26px;box-shadow:var(--shadow);z-index:5}
+@keyframes shimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.logo{font-weight:900;font-size:24px;letter-spacing:-.5px;display:flex;align-items:center;gap:6px}
+.logo .plate{display:inline-block;animation:wobble 3s ease-in-out infinite}
+@keyframes wobble{0%,100%{transform:rotate(0)}25%{transform:rotate(-12deg)}75%{transform:rotate(12deg)}}
+.me-btn{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.25);display:grid;place-items:center;
+  font-size:22px;overflow:hidden;border:2px solid rgba(255,255,255,.7)}
+.me-btn img{width:100%;height:100%;object-fit:cover}
+
+/* views */
+main{flex:1;position:relative;overflow:hidden}
+.view{position:absolute;inset:0;overflow-y:auto;padding:16px 16px 110px;display:none;-webkit-overflow-scrolling:touch}
+.view.active{display:block;animation:viewIn .35s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes viewIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+h2{font-size:22px;font-weight:900;margin:4px 2px 4px}
+.sub{color:var(--muted);font-size:14px;margin:0 2px 14px}
+
+/* tab bar */
+.tabs{position:absolute;left:12px;right:12px;bottom:12px;background:#fff;border-radius:26px;box-shadow:var(--shadow);
+  display:flex;justify-content:space-around;padding:8px 6px;z-index:10}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:800;color:var(--muted);
+  padding:6px 0;border-radius:18px;position:relative;transition:color .2s}
+.tab .ic{font-size:24px;transition:transform .3s cubic-bezier(.3,1.6,.5,1)}
+.tab.active{color:var(--pink)}
+.tab.active .ic{transform:translateY(-3px) scale(1.2)}
+.tab.active::after{content:"";position:absolute;bottom:0;width:6px;height:6px;border-radius:50%;background:var(--pink)}
+.badge{position:absolute;top:2px;right:22%;background:var(--pink);color:#fff;font-size:10px;min-width:18px;height:18px;
+  border-radius:9px;display:grid;place-items:center;padding:0 4px;animation:pop .4s}
+
+/* swipe deck */
+.deck-wrap{display:flex;flex-direction:column;height:100%}
+.deck{position:relative;height:min(62vh,500px);margin:6px 0 0}
+.card{position:absolute;inset:0;border-radius:28px;background:var(--card);box-shadow:var(--shadow);overflow:hidden;
+  touch-action:none;user-select:none;will-change:transform;transition:transform .3s ease}
+.card.dragging{transition:none}
+.card .hero{height:52%;position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#fff}
+.card .hero .big{font-size:86px;filter:drop-shadow(0 8px 12px rgba(0,0,0,.2));animation:floaty 3s ease-in-out infinite}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.card .hero .meal{font-weight:900;font-size:22px;text-shadow:0 2px 8px rgba(0,0,0,.2);text-align:center;padding:0 14px}
+.card .hero .tagrow{display:flex;gap:6px;margin-top:6px}
+.pill{background:rgba(255,255,255,.28);border-radius:20px;padding:3px 10px;font-size:12px;font-weight:800}
+.card .person{display:flex;align-items:center;gap:12px;padding:12px 16px 4px}
+.avatar{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-size:30px;flex-shrink:0;overflow:hidden;
+  border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.person .nm{font-weight:900;font-size:19px}
+.person .meta{color:var(--muted);font-size:13px;font-weight:700}
+.bio{padding:2px 16px 6px;font-size:14px;color:#5b5470}
+.bring{padding:4px 16px 10px;display:flex;flex-direction:column;gap:6px}
+.bring .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px}
+.bring .lbl{font-weight:900;font-size:12px;min-width:76px}
+.chip{display:inline-flex;align-items:center;gap:4px;background:#F3EFFF;border-radius:14px;padding:4px 10px;font-size:13px;font-weight:800}
+.chip.you{background:#FFE6EC;color:#C2294B}
+.chip.them{background:#DDF8EA;color:#13824A}
+.chip.need{background:#FFF3D6;color:#9A6400}
+.stamp{position:absolute;top:26px;padding:6px 14px;border:5px solid;border-radius:14px;font-size:30px;font-weight:900;
+  opacity:0;letter-spacing:2px;z-index:3;background:rgba(255,255,255,.85)}
+.stamp.like{left:20px;color:var(--green);border-color:var(--green);transform:rotate(-16deg)}
+.stamp.nope{right:20px;color:var(--pink);border-color:var(--pink);transform:rotate(16deg)}
+.card.behind{transform:scale(.94) translateY(16px);filter:brightness(.97)}
+.card.behind2{transform:scale(.88) translateY(32px);filter:brightness(.94)}
+.actions{display:flex;justify-content:center;gap:22px;margin-top:18px}
+.act{width:64px;height:64px;border-radius:50%;background:#fff;box-shadow:var(--shadow);font-size:28px;display:grid;place-items:center;
+  transition:transform .15s}
+.act:active{transform:scale(.85)}
+.act.small{width:52px;height:52px;font-size:22px;align-self:center}
+.act.no{color:var(--pink)} .act.yes{background:linear-gradient(135deg,var(--pink),var(--orange));color:#fff}
+.empty{text-align:center;padding:40px 18px;color:var(--muted)}
+.empty .e{font-size:70px;animation:floaty 2.6s ease-in-out infinite}
+.empty h3{color:var(--ink);font-size:20px;margin:10px 0 6px}
+
+/* generic */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 22px;border-radius:18px;font-weight:900;
+  background:linear-gradient(135deg,var(--pink),var(--orange));color:#fff;box-shadow:0 8px 20px rgba(255,90,122,.35);
+  transition:transform .15s}
+.btn:active{transform:scale(.95)}
+.btn.block{width:100%}
+.btn.ghost{background:#fff;color:var(--ink);box-shadow:var(--shadow)}
+.btn.green{background:linear-gradient(135deg,var(--green),var(--teal));box-shadow:0 8px 20px rgba(46,212,122,.35)}
+.panel{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+.field{width:100%;border:2px solid #EEE8F7;border-radius:16px;padding:12px 14px;font-size:16px;background:#fff;outline:none;transition:border .2s}
+.field:focus{border-color:var(--pink)}
+label.l{display:block;font-weight:900;font-size:13px;margin:12px 2px 6px;color:#5b5470}
+
+/* pantry */
+.addrow{display:flex;gap:8px}
+.addrow .field{flex:1}
+.addbtn{width:52px;border-radius:16px;background:var(--pink);color:#fff;font-size:26px;font-weight:900}
+.suggest{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.suggest button{background:#F3EFFF;border-radius:14px;padding:6px 10px;font-weight:800;font-size:13px}
+.pantry{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;min-height:40px}
+.ing{display:inline-flex;align-items:center;gap:6px;padding:8px 8px 8px 12px;border-radius:18px;font-weight:800;font-size:14px;
+  color:#fff;animation:pop .45s cubic-bezier(.3,1.7,.5,1)}
+.ing button{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.3);font-size:12px;font-weight:900;color:#fff}
+.ing.out{animation:shrink .25s forwards}
+@keyframes pop{0%{transform:scale(0)}100%{transform:scale(1)}}
+@keyframes shrink{to{transform:scale(0);opacity:0}}
+.cats{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin:4px -2px 6px}
+.cats button{flex-shrink:0;padding:8px 14px;border-radius:16px;background:#fff;box-shadow:0 3px 10px rgba(0,0,0,.06);font-weight:800;font-size:13px}
+.cats button.on{background:var(--ink);color:#fff}
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.quick button{background:#fff;border-radius:16px;padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;
+  font-size:11px;font-weight:800;box-shadow:0 3px 10px rgba(0,0,0,.05);border:2px solid transparent;transition:transform .15s}
+.quick button .em{font-size:26px}
+.quick button.have{border-color:var(--green);background:#EFFFF6}
+.quick button:active{transform:scale(.9)}
+.photo-box{border:3px dashed #E4DCF3;border-radius:20px;padding:18px;text-align:center;background:#fff}
+.photo-box img{width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:10px}
+.savebar{position:sticky;bottom:0;padding-top:8px}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+
+/* recipes */
+.rgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.rcard{background:#fff;border-radius:20px;overflow:hidden;box-shadow:var(--shadow);text-align:left;animation:pop .4s backwards}
+.rcard .rh{height:96px;display:grid;place-items:center;font-size:50px;position:relative}
+.rcard .pct{position:absolute;top:8px;right:8px;background:#fff;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:900}
+.rcard .rb{padding:10px 12px 12px}
+.rcard .rn{font-weight:900;font-size:15px;line-height:1.15}
+.rcard .rm{font-size:12px;color:var(--muted);font-weight:700;margin-top:3px}
+.sec{font-weight:900;font-size:16px;margin:18px 2px 10px;display:flex;align-items:center;gap:6px}
+
+/* chats */
+.mlist{display:flex;gap:14px;overflow-x:auto;padding:4px 2px 12px}
+.mbub{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:800;flex-shrink:0}
+.mbub .avatar{width:64px;height:64px;font-size:34px;border-color:var(--pink)}
+.citem{display:flex;align-items:center;gap:12px;background:#fff;border-radius:20px;padding:12px;margin-bottom:10px;box-shadow:0 4px 14px rgba(0,0,0,.05);width:100%;text-align:left}
+.citem .t{flex:1;min-width:0}
+.citem .t b{display:block;font-size:16px}
+.citem .t span{display:block;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.citem .meal-mini{font-size:28px}
+
+/* sheet / overlays */
+.overlay{position:fixed;inset:0;background:rgba(43,35,64,.45);z-index:50;display:none;align-items:flex-end;justify-content:center}
+.overlay.show{display:flex;animation:fade .25s}
+@keyframes fade{from{opacity:0}}
+.sheet{background:var(--bg);width:100%;max-width:520px;max-height:92vh;border-radius:28px 28px 0 0;overflow-y:auto;
+  animation:up .4s cubic-bezier(.2,.9,.3,1.1);padding-bottom:20px}
+@keyframes up{from{transform:translateY(100%)}}
+.sheet .grab{width:44px;height:5px;border-radius:3px;background:#D9D2E9;margin:10px auto}
+.sheet .shead{padding:6px 18px 0;display:flex;justify-content:space-between;align-items:center}
+.xbtn{width:38px;height:38px;border-radius:50%;background:#fff;box-shadow:0 3px 10px rgba(0,0,0,.08);font-size:18px;font-weight:900}
+.rhero{margin:10px 16px;border-radius:24px;height:150px;display:grid;place-items:center;font-size:84px}
+.steps{counter-reset:s;list-style:none;padding:0 18px}
+.steps li{counter-increment:s;position:relative;padding:10px 0 10px 44px;font-size:15px;line-height:1.4;border-bottom:1px dashed #EAE3F5}
+.steps li::before{content:counter(s);position:absolute;left:0;top:9px;width:30px;height:30px;border-radius:50%;
+  background:var(--pink);color:#fff;font-weight:900;display:grid;place-items:center;font-size:14px}
+
+/* chat screen */
+.chat{position:fixed;inset:0;z-index:60;background:var(--bg);display:none;flex-direction:column;max-width:520px;margin:0 auto}
+.chat.show{display:flex;animation:slideIn .35s cubic-bezier(.2,.9,.3,1.1)}
+@keyframes slideIn{from{transform:translateX(100%)}}
+.chat .ch{display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.06)}
+.chat .ch .avatar{width:42px;height:42px;font-size:24px;border-width:2px}
+.chat .ch b{font-size:17px}
+.chat .ch small{display:block;color:var(--muted);font-weight:700}
+.mealbar{margin:10px 14px 0;background:linear-gradient(135deg,#FFE6EC,#FFF1DC);border-radius:18px;padding:10px 12px;
+  display:flex;align-items:center;gap:10px;font-weight:800;font-size:14px}
+.mealbar .e{font-size:30px}
+.msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+.msg{max-width:78%;padding:10px 14px;border-radius:20px;font-size:15px;line-height:1.35;animation:msgIn .3s cubic-bezier(.3,1.5,.5,1)}
+@keyframes msgIn{from{transform:scale(.6);opacity:0}}
+.msg.me{align-self:flex-end;background:linear-gradient(135deg,var(--pink),var(--orange));color:#fff;border-bottom-right-radius:6px;transform-origin:right bottom}
+.msg.them{align-self:flex-start;background:#fff;box-shadow:0 3px 10px rgba(0,0,0,.06);border-bottom-left-radius:6px;transform-origin:left bottom}
+.typing{align-self:flex-start;background:#fff;border-radius:20px;padding:12px 16px;display:flex;gap:4px}
+.typing i{width:8px;height:8px;border-radius:50%;background:#C9C1DC;animation:dot 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes dot{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.composer{display:flex;gap:8px;padding:10px 12px 14px;background:#fff}
+.composer .field{flex:1}
+.send{width:50px;border-radius:16px;background:var(--pink);color:#fff;font-size:22px}
+.quickreplies{display:flex;gap:6px;overflow-x:auto;padding:0 12px 8px;background:#fff}
+.quickreplies button{flex-shrink:0;background:#F3EFFF;border-radius:14px;padding:6px 12px;font-size:13px;font-weight:800}
+
+/* match modal */
+.match{position:fixed;inset:0;z-index:80;display:none;flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 50% 40%,rgba(255,159,67,.95),rgba(255,90,122,.97) 60%,rgba(155,93,229,.97));color:#fff;text-align:center;padding:24px}
+.match.show{display:flex;animation:fade .3s}
+.match h1{font-size:44px;font-weight:900;font-style:italic;letter-spacing:-1px;animation:zoom .6s cubic-bezier(.3,1.8,.5,1)}
+@keyframes zoom{from{transform:scale(0) rotate(-10deg)}}
+.match .pair{display:flex;align-items:center;margin:26px 0 10px;position:relative}
+.match .pair .avatar{width:110px;height:110px;font-size:58px;border-width:5px}
+.match .pair .a1{animation:inL .7s cubic-bezier(.3,1.5,.5,1) both;transform:rotate(-8deg)}
+.match .pair .a2{animation:inR .7s cubic-bezier(.3,1.5,.5,1) both;transform:rotate(8deg);margin-left:-18px}
+@keyframes inL{from{transform:translateX(-200px) rotate(-40deg)}}
+@keyframes inR{from{transform:translateX(200px) rotate(40deg)}}
+.match .heart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:46px;z-index:2;animation:beat .9s .6s infinite both}
+@keyframes beat{0%,100%{transform:translate(-50%,-50%) scale(1)}30%{transform:translate(-50%,-50%) scale(1.35)}}
+.match .mealname{font-size:18px;font-weight:800;margin:12px 0 26px;max-width:320px;line-height:1.35}
+.match .mealname .e{font-size:44px;display:block;animation:floaty 2.4s infinite}
+.match .btn{width:100%;max-width:320px;margin-top:10px}
+.match .btn.white{background:#fff;color:var(--pink)}
+.match .btn.clear{background:transparent;box-shadow:none;border:2px solid rgba(255,255,255,.7)}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:90}
+
+/* onboarding */
+.onb{position:fixed;inset:0;z-index:100;background:linear-gradient(160deg,#FF5A7A,#FF9F43 55%,#FFD23F);display:none;
+  flex-direction:column;align-items:center;justify-content:center;padding:24px;color:#fff;text-align:center}
+.onb.show{display:flex}
+.onb .bigplate{font-size:96px;animation:spinIn 1s cubic-bezier(.3,1.5,.5,1)}
+@keyframes spinIn{from{transform:scale(0) rotate(-360deg)}}
+.onb h1{font-size:40px;font-weight:900;letter-spacing:-1px}
+.onb p{font-size:17px;font-weight:700;opacity:.95;margin:8px 0 26px;max-width:340px}
+.onb .floaters span{position:absolute;font-size:34px;opacity:.85;animation:drift 7s linear infinite}
+@keyframes drift{from{transform:translateY(110vh) rotate(0)}to{transform:translateY(-20vh) rotate(360deg)}}
+.onb .btn{background:#fff;color:var(--pink);box-shadow:0 10px 30px rgba(0,0,0,.15);width:100%;max-width:320px}
+
+.bigav .avatar{width:96px;height:96px;font-size:52px}
+.avpick{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.avpick button{width:46px;height:46px;border-radius:50%;background:#F3EFFF;font-size:24px;border:3px solid transparent;transition:transform .2s}
+.avpick button.on{border-color:var(--pink);transform:scale(1.15)}
+.seg{display:flex;background:#F3EFFF;border-radius:16px;padding:4px}
+.seg button{flex:1;padding:10px 4px;border-radius:12px;font-weight:800;font-size:13px}
+.seg button.on{background:#fff;box-shadow:0 3px 10px rgba(0,0,0,.08);color:var(--pink)}
+.toast{position:fixed;left:50%;top:80px;transform:translateX(-50%) translateY(-30px);background:var(--ink);color:#fff;padding:12px 18px;
+  border-radius:16px;font-weight:800;font-size:14px;z-index:200;opacity:0;transition:all .35s cubic-bezier(.3,1.5,.5,1);pointer-events:none;max-width:90%;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.burst{position:fixed;pointer-events:none;z-index:120;font-size:26px;animation:burst .9s ease-out forwards}
+@keyframes burst{to{transform:translate(var(--dx),var(--dy)) scale(.4);opacity:0}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="logo"><span class="plate">🍽️</span> PlateMate</div>
+    <button class="me-btn" id="meBtn" aria-label="My profile">🙂</button>
+  </header>
+
+  <main>
+    <!-- SWIPE / HOME -->
+    <section class="view active" id="v-home">
+      <div class="deck-wrap">
+        <h2>Cook together 🔥</h2>
+        <p class="sub" id="homeSub">Meals you can make by combining pantries</p>
+        <div class="deck" id="deck"></div>
+        <div class="actions" id="deckActions">
+          <button class="act no" id="btnNo" aria-label="Pass">✖</button>
+          <button class="act small" id="btnInfo" aria-label="See recipe">📖</button>
+          <button class="act yes" id="btnYes" aria-label="Like">❤</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SOLO RECIPES -->
+    <section class="view" id="v-cook">
+      <h2>What can I cook? 👩‍🍳</h2>
+      <p class="sub">Recipes from your pantry alone (salt, pepper, oil & water assumed)</p>
+      <div id="cookList"></div>
+    </section>
+
+    <!-- PANTRY -->
+    <section class="view" id="v-pantry">
+      <h2>My Pantry 🧺</h2>
+      <p class="sub">Add what you have — your matches update instantly</p>
+
+      <div class="panel">
+        <div class="addrow">
+          <input class="field" id="ingInput" placeholder="Type an ingredient… e.g. eggs" autocomplete="off">
+          <button class="addbtn" id="ingAdd" aria-label="Add">+</button>
+        </div>
+        <div class="suggest" id="suggest"></div>
+        <div class="pantry" id="pantry"></div>
+        <div class="hint" id="pantryCount"></div>
+      </div>
+
+      <div class="panel">
+        <div class="photo-box" id="photoBox">
+          <div style="font-size:44px">📸</div>
+          <b>Snap your fridge or counter</b>
+          <p class="hint" style="margin:4px 0 12px">Take a photo, then tap what you see to add it</p>
+          <button class="btn" id="snapBtn">Take / choose photo</button>
+        </div>
+      </div>
+
+      <div class="sec">⚡ Quick add</div>
+      <div class="cats" id="cats"></div>
+      <div class="quick" id="quick"></div>
+
+      <div class="savebar"><button class="btn green block" id="saveBtn" style="margin-top:16px">💾 Save & find meals</button></div>
+    </section>
+
+    <!-- CHATS -->
+    <section class="view" id="v-chats">
+      <h2>Matches 💞</h2>
+      <p class="sub">People you're cooking with</p>
+      <div class="mlist" id="mlist"></div>
+      <div id="clist"></div>
+    </section>
+
+    <nav class="tabs">
+      <button class="tab active" data-v="home"><span class="ic">🔥</span>Match</button>
+      <button class="tab" data-v="cook"><span class="ic">🍳</span>Cook</button>
+      <button class="tab" data-v="pantry"><span class="ic">🧺</span>Pantry</button>
+      <button class="tab" data-v="chats"><span class="ic">💬</span>Chats<span class="badge" id="chatBadge" style="display:none"></span></button>
+    </nav>
+  </main>
+</div>
+
+<!-- recipe sheet -->
+<div class="overlay" id="recipeOv"><div class="sheet" id="recipeSheet"></div></div>
+<!-- profile sheet -->
+<div class="overlay" id="profileOv"><div class="sheet" id="profileSheet"></div></div>
+<!-- photo tag sheet -->
+<div class="overlay" id="photoOv"><div class="sheet" id="photoSheet"></div></div>
+
+<!-- chat -->
+<div class="chat" id="chat">
+  <div class="ch">
+    <button class="xbtn" id="chatBack">←</button>
+    <div class="avatar" id="chatAv"></div>
+    <div><b id="chatName"></b><small id="chatMeta"></small></div>
+  </div>
+  <div class="mealbar" id="chatMeal"></div>
+  <div class="msgs" id="msgs"></div>
+  <div class="quickreplies" id="qr"></div>
+  <div class="composer">
+    <input class="field" id="msgInput" placeholder="Say something tasty…">
+    <button class="send" id="sendBtn">➤</button>
+  </div>
+</div>
+
+<!-- match modal -->
+<div class="match" id="match"></div>
+<canvas id="confetti"></canvas>
+
+<!-- onboarding -->
+<div class="onb" id="onb"></div>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="fileIn" accept="image/*" capture="environment" style="display:none">
+
+<script>
+"use strict";
+/* ================= DATA ================= */
+const STAPLES = ["salt","pepper","oil","water"];
+
+const ING = { // name: [emoji, category]
+  "egg":["🥚","dairy"],"milk":["🥛","dairy"],"cheese":["🧀","dairy"],"butter":["🧈","dairy"],"yogurt":["🍦","dairy"],
+  "cream":["🥛","dairy"],
+  "chicken":["🍗","protein"],"ground beef":["🥩","protein"],"bacon":["🥓","protein"],"ham":["🍖","protein"],
+  "sausage":["🌭","protein"],"tuna":["🐟","protein"],"salmon":["🍣","protein"],"shrimp":["🍤","protein"],"tofu":["🧊","protein"],
+  "beans":["🫘","protein"],"peanut butter":["🥜","pantry"],
+  "tomato":["🍅","veg"],"onion":["🧅","veg"],"garlic":["🧄","veg"],"potato":["🥔","veg"],"carrot":["🥕","veg"],
+  "bell pepper":["🫑","veg"],"spinach":["🥬","veg"],"lettuce":["🥬","veg"],"mushroom":["🍄","veg"],"broccoli":["🥦","veg"],
+  "cucumber":["🥒","veg"],"zucchini":["🥒","veg"],"corn":["🌽","veg"],"avocado":["🥑","veg"],"green onion":["🌱","veg"],
+  "celery":["🥬","veg"],"ginger":["🫚","veg"],"basil":["🌿","veg"],"cilantro":["🌿","veg"],
+  "banana":["🍌","fruit"],"apple":["🍎","fruit"],"lemon":["🍋","fruit"],"lime":["🍋","fruit"],"strawberry":["🍓","fruit"],
+  "rice":["🍚","pantry"],"pasta":["🍝","pantry"],"bread":["🍞","pantry"],"tortilla":["🫓","pantry"],"flour":["🌾","pantry"],
+  "sugar":["🍬","pantry"],"oats":["🥣","pantry"],"noodles":["🍜","pantry"],"honey":["🍯","pantry"],"soy sauce":["🫙","pantry"],
+  "mayo":["🫙","pantry"],"cinnamon":["🟤","pantry"],"chocolate":["🍫","pantry"],"coconut milk":["🥥","pantry"],
+  "curry paste":["🌶️","pantry"]
+};
+const ALIAS = {
+  "eggs":"egg","beef":"ground beef","hamburger":"ground beef","mince":"ground beef","minced beef":"ground beef",
+  "black beans":"beans","pinto beans":"beans","bean":"beans","kidney beans":"beans","chickpeas":"beans",
+  "cheddar":"cheese","mozzarella":"cheese","parmesan":"cheese","feta":"cheese","swiss":"cheese","cheese slices":"cheese",
+  "spaghetti":"pasta","penne":"pasta","macaroni":"pasta","linguine":"pasta","fettuccine":"pasta",
+  "scallion":"green onion","scallions":"green onion","green onions":"green onion","spring onion":"green onion",
+  "peppers":"bell pepper","bell peppers":"bell pepper","red pepper":"bell pepper","green pepper":"bell pepper",
+  "noodle":"noodles","ramen":"noodles","udon":"noodles","tortillas":"tortilla","wraps":"tortilla","wrap":"tortilla",
+  "chicken breast":"chicken","chicken thighs":"chicken","chicken breasts":"chicken","prawns":"shrimp","prawn":"shrimp",
+  "mayonnaise":"mayo","oatmeal":"oats","oat":"oats","soy":"soy sauce","heavy cream":"cream","sour cream":"cream",
+  "strawberries":"strawberry","tomatoes":"tomato","potatoes":"potato","sweet potato":"potato","rolled oats":"oats",
+  "pb":"peanut butter","toast":"bread","loaf":"bread","bun":"bread","buns":"bread","romaine":"lettuce",
+  "olive oil":"oil","vegetable oil":"oil","canola oil":"oil","sea salt":"salt","black pepper":"pepper",
+  "chocolate chips":"chocolate","cocoa":"chocolate","hot dog":"sausage","hot dogs":"sausage","brown rice":"rice","white rice":"rice",
+  "greek yogurt":"yogurt","yoghurt":"yogurt","canned tuna":"tuna","chili":"curry paste"
+};
+const CATS = [["all","✨ All"],["veg","🥕 Veggies"],["protein","🍗 Protein"],["dairy","🧀 Dairy"],["fruit","🍓 Fruit"],["pantry","🫙 Pantry"]];
+
+const R = (id,name,emoji,time,diff,ing,steps,c)=>({id,name,emoji,time,diff,ing,steps,c});
+const RECIPES = [
+ R("omelette","Cheesy Omelette","🍳",10,"Easy",["egg","cheese","butter"],["Whisk eggs with a pinch of salt and pepper.","Melt butter in a pan over medium heat.","Pour in eggs, swirl, and let set for 1 minute.","Sprinkle cheese on one half, fold, and slide onto a plate."],"#FFD23F"),
+ R("grilledcheese","Grilled Cheese","🥪",10,"Easy",["bread","cheese","butter"],["Butter one side of each bread slice.","Stack cheese between slices, butter sides out.","Cook in a pan 3 min per side until golden and melty."],"#FF9F43"),
+ R("tomatosoup","Creamy Tomato Soup","🍅",30,"Easy",["tomato","onion","garlic","cream"],["Sauté chopped onion and garlic in oil until soft.","Add chopped tomatoes and a cup of water; simmer 15 min.","Blend smooth, stir in cream, season and serve."],"#FF5A7A"),
+ R("friedrice","Veggie Fried Rice","🍚",20,"Easy",["rice","egg","soy sauce","green onion","carrot"],["Stir-fry diced carrot in hot oil for 2 min.","Push aside, scramble eggs in the pan.","Add cold rice and soy sauce; toss on high heat.","Finish with sliced green onion."],"#FFD23F"),
+ R("garlicpasta","Garlic Butter Pasta","🍝",15,"Easy",["pasta","garlic","butter","cheese"],["Boil pasta in salted water; save a splash of pasta water.","Gently cook minced garlic in butter.","Toss pasta with garlic butter, cheese and a little pasta water."],"#FFB86B"),
+ R("pomodoro","Pasta Pomodoro","🍝",25,"Easy",["pasta","tomato","garlic","basil"],["Cook pasta until al dente.","Sauté garlic in oil, add chopped tomatoes and simmer 10 min.","Toss pasta in the sauce and top with torn basil."],"#FF5A7A"),
+ R("stirfry","Chicken Stir-Fry","🥢",25,"Medium",["chicken","bell pepper","soy sauce","garlic","rice"],["Cook rice.","Sear sliced chicken in hot oil until golden.","Add sliced bell pepper and garlic, stir-fry 3 min.","Splash in soy sauce and serve over rice."],"#2ED47A"),
+ R("tacos","Beef Tacos","🌮",20,"Easy",["ground beef","tortilla","cheese","lettuce","tomato"],["Brown the beef with salt and pepper.","Warm tortillas in a dry pan.","Fill with beef, lettuce, tomato and cheese."],"#FF9F43"),
+ R("burrito","Bean & Rice Burrito","🌯",20,"Easy",["tortilla","beans","rice","cheese"],["Warm beans with a pinch of salt.","Layer rice, beans and cheese on a tortilla.","Roll tight and toast seam-side down until crisp."],"#C08552"),
+ R("loadedpotato","Loaded Baked Potatoes","🥔",50,"Easy",["potato","cheese","bacon","green onion"],["Bake oiled, salted potatoes at 400°F (200°C) for 45 min.","Crisp the bacon and chop it.","Split potatoes, stuff with cheese, bacon and green onion."],"#C08552"),
+ R("pancakes","Fluffy Pancakes","🥞",20,"Easy",["flour","egg","milk","sugar"],["Whisk flour, sugar and a pinch of salt.","Beat in egg and milk until just combined.","Cook ladlefuls on an oiled pan until bubbles form; flip."],"#FFD23F"),
+ R("bananapancakes","Banana Oat Pancakes","🍌",15,"Easy",["banana","egg","oats"],["Mash banana, beat in eggs.","Stir in oats.","Cook small rounds in an oiled pan, 2 min per side."],"#FFE066"),
+ R("guac","Guacamole & Crispy Chips","🥑",15,"Easy",["avocado","lime","onion","tomato","tortilla"],["Cut tortillas into wedges, brush with oil, bake until crisp.","Mash avocado with lime juice and salt.","Fold in diced onion and tomato."],"#2ED47A"),
+ R("caprese","Caprese Toast","🍅",10,"Easy",["bread","tomato","cheese","basil"],["Toast the bread with a drizzle of oil.","Layer sliced tomato and cheese.","Top with basil, salt and pepper."],"#FF5A7A"),
+ R("tunamelt","Tuna Melt","🐟",15,"Easy",["tuna","mayo","bread","cheese"],["Mix tuna with mayo, salt and pepper.","Spread on bread and top with cheese.","Toast in a pan or oven until cheese melts."],"#4D7CFE"),
+ R("chickencurry","Coconut Chicken Curry","🍛",35,"Medium",["chicken","curry paste","coconut milk","onion","rice"],["Cook rice.","Sauté onion, then fry the curry paste for 1 min.","Add chicken, brown it, pour in coconut milk.","Simmer 15 min and serve over rice."],"#FF9F43"),
+ R("veggiecurry","Potato & Spinach Curry","🍛",35,"Medium",["potato","curry paste","coconut milk","spinach","rice"],["Cook rice.","Fry curry paste in oil, add cubed potato and coconut milk.","Simmer until potatoes are tender, about 20 min.","Stir in spinach until wilted."],"#2ED47A"),
+ R("scampi","Shrimp Scampi","🍤",20,"Medium",["shrimp","pasta","garlic","butter","lemon"],["Cook pasta.","Sizzle garlic in butter, add shrimp and cook until pink.","Squeeze in lemon, toss with pasta."],"#FF9F43"),
+ R("salmonbowl","Salmon Rice Bowl","🍣",25,"Medium",["salmon","rice","soy sauce","avocado","cucumber"],["Cook rice.","Pan-sear salmon 4 min per side, glaze with soy sauce.","Build bowls with rice, flaked salmon, avocado and cucumber."],"#FF7F7F"),
+ R("risotto","Mushroom Risotto","🍄",40,"Medium",["rice","mushroom","onion","cheese","butter"],["Sauté onion and sliced mushrooms in butter.","Add rice and stir 1 min.","Add hot water a ladle at a time, stirring, for ~20 min.","Finish with cheese and more butter."],"#B08968"),
+ R("shakshuka","Shakshuka","🍳",30,"Medium",["egg","tomato","onion","bell pepper","garlic"],["Sauté onion, pepper and garlic until soft.","Add chopped tomatoes and simmer into a sauce.","Make wells, crack in eggs, cover until set."],"#FF5A7A"),
+ R("blt","BLT Sandwich","🥓",15,"Easy",["bacon","lettuce","tomato","bread","mayo"],["Cook bacon until crisp.","Toast the bread and spread with mayo.","Stack bacon, lettuce and tomato."],"#FF9F43"),
+ R("quesadilla","Chicken Quesadilla","🫓",20,"Easy",["tortilla","cheese","chicken","bell pepper"],["Cook diced chicken and peppers in oil.","Fill a tortilla with cheese and the chicken mix, fold.","Toast both sides until crisp and melty."],"#FFD23F"),
+ R("pbsmoothie","PB Banana Smoothie","🥤",5,"Easy",["banana","peanut butter","milk","honey"],["Add everything to a blender.","Blend until smooth and creamy."],"#C08552"),
+ R("overnightoats","Berry Overnight Oats","🥣",5,"Easy",["oats","milk","yogurt","honey","strawberry"],["Stir oats, milk, yogurt and honey in a jar.","Chill overnight.","Top with sliced strawberries."],"#FF7FA8"),
+ R("crumble","Apple Cinnamon Crumble","🍎",45,"Medium",["apple","cinnamon","oats","butter","sugar"],["Slice apples, toss with cinnamon and a little sugar.","Rub butter into oats and sugar to make crumbs.","Top apples with crumbs and bake at 375°F (190°C) for 35 min."],"#FF5A7A"),
+ R("mugcake","Chocolate Mug Cake","🍫",5,"Easy",["flour","sugar","chocolate","milk","egg"],["Melt chocolate in a mug.","Whisk in egg, milk, sugar and flour.","Microwave 70–90 seconds."],"#7B4B2A"),
+ R("greeksalad","Greek Salad","🥗",10,"Easy",["cucumber","tomato","onion","cheese","lemon"],["Chop cucumber, tomato and onion.","Add crumbled cheese.","Dress with lemon, oil, salt and pepper."],"#2ED47A"),
+ R("gingernoodles","Ginger Garlic Noodles","🍜",15,"Easy",["noodles","garlic","ginger","soy sauce","green onion"],["Boil noodles.","Sizzle grated ginger and garlic in oil.","Toss noodles with it and soy sauce, top with green onion."],"#FFB86B"),
+ R("tofustirfry","Tofu & Broccoli Stir-Fry","🥦",25,"Easy",["tofu","broccoli","soy sauce","garlic","rice"],["Cook rice.","Pan-fry cubed tofu until golden.","Add broccoli and garlic, stir-fry 4 min, splash with soy sauce."],"#2ED47A"),
+ R("sausagepeppers","Sausage & Pepper Subs","🌭",25,"Easy",["sausage","bell pepper","onion","bread"],["Brown the sausages.","Add sliced peppers and onion, cook until soft.","Pile into bread rolls."],"#FF5A7A"),
+ R("noodlesoup","Chicken Noodle Soup","🍲",40,"Medium",["chicken","carrot","celery","onion","noodles"],["Sauté onion, carrot and celery.","Add chicken and 6 cups of water; simmer 20 min.","Shred chicken, add noodles, cook until tender."],"#FFD23F"),
+ R("fritters","Zucchini Fritters","🥒",25,"Medium",["zucchini","egg","flour","cheese"],["Grate zucchini, salt it, squeeze out the water.","Mix with egg, flour and cheese.","Fry spoonfuls in oil until golden on both sides."],"#2ED47A"),
+ R("hamscramble","Ham & Cheese Scramble","🍳",10,"Easy",["egg","ham","cheese","green onion"],["Warm diced ham in an oiled pan.","Add beaten eggs and stir gently.","Fold in cheese and green onion."],"#FFD23F"),
+ R("broccolibake","Broccoli Cheddar Bake","🥦",35,"Medium",["broccoli","cheese","milk","butter","flour"],["Steam broccoli until bright green.","Make a sauce: melt butter, whisk in flour, then milk, then cheese.","Pour over broccoli and bake at 400°F (200°C) for 15 min."],"#2ED47A"),
+ R("bolognese","Spaghetti Bolognese","🍝",40,"Medium",["pasta","ground beef","tomato","onion","garlic"],["Brown beef with onion and garlic.","Add chopped tomatoes, simmer 20 min.","Serve over cooked pasta."],"#FF5A7A"),
+ R("lemonchicken","Lemon Garlic Chicken & Potatoes","🍋",45,"Medium",["chicken","lemon","garlic","butter","potato"],["Toss cubed potatoes in oil and roast at 425°F (220°C) for 20 min.","Sear chicken in butter with garlic.","Add chicken to the tray, squeeze lemon over, roast 15 more min."],"#FFE066"),
+ R("cornsalad","Corn & Bean Fiesta Salad","🌽",10,"Easy",["corn","beans","bell pepper","lime","cilantro"],["Drain corn and beans.","Mix with diced pepper and chopped cilantro.","Dress with lime, oil and salt."],"#FFD23F"),
+ R("frenchtoast","French Toast","🍞",15,"Easy",["bread","egg","milk","cinnamon","sugar"],["Whisk egg, milk, cinnamon and sugar.","Dip bread slices in the mix.","Fry in an oiled pan until golden on both sides."],"#FF9F43"),
+ R("parfait","Yogurt Parfait","🍓",5,"Easy",["yogurt","strawberry","honey","oats"],["Layer yogurt, strawberries and oats in a glass.","Drizzle with honey."],"#FF7FA8"),
+ R("mushroomtoast","Garlicky Mushroom Toast","🍄",15,"Easy",["bread","mushroom","garlic","butter"],["Cook sliced mushrooms in butter until browned.","Add garlic for the last minute.","Pile onto toasted bread."],"#B08968"),
+ R("berrysmoothie","Strawberry Banana Smoothie","🍓",5,"Easy",["strawberry","banana","yogurt","milk"],["Add everything to a blender.","Blend until smooth."],"#FF5A7A")
+];
+const RBY = Object.fromEntries(RECIPES.map(r=>[r.id,r]));
+
+const PEOPLE = [
+ {id:"p1",name:"Maya",age:27,av:"👩🏽‍🦱",col:"#FF7FA8",bio:"Taco Tuesday every day of the week 🌮 Looking for a sous-chef.",dist:2,vibe:"date",
+  pantry:["tortilla","ground beef","lettuce","lime","avocado","cilantro","corn"]},
+ {id:"p2",name:"Jordan",age:30,av:"🧔🏻",col:"#4D7CFE",bio:"Home baker. I bring the carbs, you bring the vibes 🍞",dist:4,vibe:"both",
+  pantry:["bread","flour","sugar","butter","milk","cinnamon","chocolate"]},
+ {id:"p3",name:"Priya",age:25,av:"👩🏾",col:"#FF9F43",bio:"Curry nights + bad movies. Spice tolerance: high 🌶️",dist:3,vibe:"friends",
+  pantry:["curry paste","coconut milk","rice","ginger","spinach","onion","garlic"]},
+ {id:"p4",name:"Leo",age:29,av:"👨🏻‍🦰",col:"#2ED47A",bio:"Gym bro who actually cooks. Chicken is my love language 🍗",dist:5,vibe:"date",
+  pantry:["chicken","broccoli","rice","egg","soy sauce","bell pepper"]},
+ {id:"p5",name:"Sofia",age:26,av:"👱🏻‍♀️",col:"#9B5DE5",bio:"Pasta is a personality trait. Nonna-approved recipes only 🍝",dist:1,vibe:"date",
+  pantry:["pasta","tomato","basil","cheese","garlic","cream"]},
+ {id:"p6",name:"Marcus",age:33,av:"👨🏿",col:"#1FC8C8",bio:"Brunch enthusiast. Will flip pancakes for good conversation 🥞",dist:6,vibe:"both",
+  pantry:["egg","bacon","ham","banana","oats","strawberry","yogurt","honey"]},
+ {id:"p7",name:"Hana",age:24,av:"👩🏻",col:"#FF5A7A",bio:"Noodle slurper. Ramen > roses 🍜",dist:3,vibe:"date",
+  pantry:["noodles","green onion","tofu","salmon","cucumber","soy sauce","ginger"]},
+ {id:"p8",name:"Diego",age:31,av:"🧑🏽",col:"#FFD23F",bio:"Grill master looking for someone to share the leftovers 🔥",dist:7,vibe:"friends",
+  pantry:["sausage","potato","onion","beans","corn","bell pepper"]},
+ {id:"p9",name:"Ava",age:28,av:"👩🏼‍🦳",col:"#4D7CFE",bio:"Plant-forward, cheese-dependent 🧀🥦",dist:2,vibe:"both",
+  pantry:["cheese","mushroom","zucchini","spinach","broccoli","milk","lemon"]},
+ {id:"p10",name:"Sam",age:35,av:"🧑🏼‍🦲",col:"#FF9F43",bio:"Seafood shack energy. Shrimp scampi champ 🍤",dist:8,vibe:"date",
+  pantry:["shrimp","lemon","butter","garlic","tuna","mayo"]},
+ {id:"p11",name:"Nia",age:23,av:"👩🏿‍🦱",col:"#9B5DE5",bio:"Smoothies, sweets and sunny days 🍓🍫",dist:4,vibe:"friends",
+  pantry:["banana","peanut butter","strawberry","chocolate","apple","honey","yogurt"]},
+ {id:"p12",name:"Theo",age:32,av:"👨🏽‍🍳",col:"#2ED47A",bio:"Retired line cook. Soup season is every season 🍲",dist:5,vibe:"both",
+  pantry:["chicken","carrot","celery","onion","noodles","potato","tomato"]}
+];
+const PBY = Object.fromEntries(PEOPLE.map(p=>[p.id,p]));
+const AVATARS = ["😋","😎","🤠","🥳","🧑‍🍳","👩‍🍳","👨‍🍳","🦊","🐼","🐸","🌮","🍕"];
+
+/* ================= STATE ================= */
+const KEY = "platemate_v1";
+let S = load();
+function fresh(){return {profile:null,pantry:[],swiped:{},matches:[],unread:0,lastPhoto:null};}
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));return s&&typeof s==="object"?Object.assign(fresh(),s):fresh();}catch(e){return fresh();}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast("Storage is full — photo not saved");}}
+
+/* ================= HELPERS ================= */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const emo=i=>(ING[i]||["🥄"])[0];
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+function norm(raw){
+  let s=String(raw).toLowerCase().trim().replace(/\s+/g," ").replace(/^(a |an |some |fresh |frozen |canned )/,"");
+  if(!s) return "";
+  if(ALIAS[s]) return ALIAS[s];
+  if(ING[s]||STAPLES.includes(s)) return s;
+  if(s.endsWith("ies")&&ING[s.slice(0,-3)+"y"]) return s.slice(0,-3)+"y";
+  if(s.endsWith("es")&&ING[s.slice(0,-2)]) return s.slice(0,-2);
+  if(s.endsWith("s")&&ING[s.slice(0,-1)]) return s.slice(0,-1);
+  if(s.endsWith("s")&&ALIAS[s.slice(0,-1)]) return ALIAS[s.slice(0,-1)];
+  return s;
+}
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2200);}
+function avatarHTML(p,cls){
+  if(p.photo) return `<div class="avatar ${cls||""}" style="background:${p.col||"#FFE6EC"}"><img src="${p.photo}" alt=""></div>`;
+  return `<div class="avatar ${cls||""}" style="background:${p.col||"#FFE6EC"}">${p.av||"😋"}</div>`;
+}
+function me(){return Object.assign({col:"#FFE6EC"},S.profile||{name:"You",av:"😋"});}
+function burst(x,y,chars){
+  for(let i=0;i<8;i++){const b=document.createElement("div");b.className="burst";b.textContent=chars[i%chars.length];
+    b.style.left=x+"px";b.style.top=y+"px";const a=Math.random()*Math.PI*2,d=60+Math.random()*60;
+    b.style.setProperty("--dx",Math.cos(a)*d+"px");b.style.setProperty("--dy",Math.sin(a)*d+"px");
+    document.body.appendChild(b);setTimeout(()=>b.remove(),900);}
+}
+
+/* ================= MATCHING ENGINE ================= */
+function hasSet(list){return new Set(list.concat(STAPLES));}
+function soloRecipes(){
+  const have=hasSet(S.pantry);
+  return RECIPES.map(r=>{const missing=r.ing.filter(i=>!have.has(i));return {r,missing,pct:Math.round(100*(r.ing.length-missing.length)/r.ing.length)};})
+    .filter(x=>x.pct>0).sort((a,b)=>a.missing.length-b.missing.length||b.pct-a.pct);
+}
+function duoOptions(person){
+  const mine=new Set(S.pantry), theirs=new Set(person.pantry);
+  const out=[];
+  for(const r of RECIPES){
+    const you=r.ing.filter(i=>mine.has(i));
+    const them=r.ing.filter(i=>theirs.has(i)&&!mine.has(i));
+    const missing=r.ing.filter(i=>!mine.has(i)&&!theirs.has(i));
+    if(you.length===0||them.length===0||missing.length>1) continue;
+    out.push({r,you,them,missing,score:(missing.length?0:100)+you.length+them.length});
+  }
+  return out.sort((a,b)=>b.score-a.score);
+}
+function buildDeck(){
+  const cards=[];
+  for(const p of PEOPLE){
+    if(S.matches.some(m=>m.pid===p.id)) continue;
+    const opts=duoOptions(p).filter(o=>!S.swiped[p.id+":"+o.r.id]);
+    opts.slice(0,2).forEach((o,i)=>cards.push(Object.assign({p,rank:i},o)));
+  }
+  // best combos first, but spread people out a little
+  return cards.sort((a,b)=>a.rank-b.rank||b.score-a.score);
+}
+
+/* ================= SWIPE DECK ================= */
+let deck=[];
+function renderDeck(){
+  deck=buildDeck();
+  const el=$("deck");
+  if(!S.pantry.length){
+    el.innerHTML=`<div class="empty"><div class="e">🧺</div><h3>Your pantry is empty</h3><p>Add a few ingredients and we'll find people you can cook with.</p><br><button class="btn" onclick="go('pantry')">Fill my pantry</button></div>`;
+    $("deckActions").style.visibility="hidden"; $("homeSub").textContent="Meals you can make by combining pantries"; return;
+  }
+  if(!deck.length){
+    el.innerHTML=`<div class="empty"><div class="e">🍽️</div><h3>No more combos right now</h3><p>Add more ingredients to unlock new meals and new cooks.</p><br><button class="btn" onclick="go('pantry')">Add ingredients</button><br><br><button class="btn ghost" onclick="resetSwipes()">↺ See passed cards again</button></div>`;
+    $("deckActions").style.visibility="hidden"; $("homeSub").textContent="You've seen everyone for now"; return;
+  }
+  $("deckActions").style.visibility="visible";
+  $("homeSub").textContent=`${deck.length} meal${deck.length>1?"s":""} you could cook with someone nearby`;
+  el.innerHTML="";
+  deck.slice(0,3).reverse().forEach((c,idx,arr)=>{
+    const pos=arr.length-1-idx; // 0 = top
+    const d=document.createElement("div");
+    d.className="card"+(pos===1?" behind":pos===2?" behind2":"");
+    d.innerHTML=cardHTML(c);
+    el.appendChild(d);
+    if(pos===0) attachDrag(d,c);
+  });
+}
+function cardHTML(c){
+  const p=c.p,r=c.r;
+  return `
+  <div class="stamp like">YUM!</div><div class="stamp nope">NOPE</div>
+  <div class="hero" style="background:linear-gradient(150deg,${r.c},${p.col})">
+    <div class="big">${r.emoji}</div>
+    <div class="meal">${esc(r.name)}</div>
+    <div class="tagrow"><span class="pill">⏱ ${r.time} min</span><span class="pill">${r.diff}</span>${c.missing.length?'<span class="pill">🛒 +1 item</span>':'<span class="pill">✅ Ready</span>'}</div>
+  </div>
+  <div class="person">${avatarHTML(p)}<div><div class="nm">${esc(p.name)}, ${p.age}</div>
+    <div class="meta">📍 ${p.dist} mi away · ${p.vibe==="date"?"💘 Dating":p.vibe==="friends"?"🤝 Friends":"💘🤝 Open to both"}</div></div></div>
+  <div class="bio">${esc(p.bio)}</div>
+  <div class="bring">
+    <div class="row"><span class="lbl">You bring</span>${c.you.map(i=>`<span class="chip you">${emo(i)} ${i}</span>`).join("")}</div>
+    <div class="row"><span class="lbl">${esc(p.name)} brings</span>${c.them.map(i=>`<span class="chip them">${emo(i)} ${i}</span>`).join("")}</div>
+    ${c.missing.length?`<div class="row"><span class="lbl">Grab</span>${c.missing.map(i=>`<span class="chip need">${emo(i)} ${i}</span>`).join("")}</div>`:""}
+  </div>`;
+}
+function attachDrag(el,c){
+  let sx=0,sy=0,dx=0,dy=0,down=false;
+  const like=el.querySelector(".like"),nope=el.querySelector(".nope");
+  el.addEventListener("pointerdown",e=>{down=true;sx=e.clientX;sy=e.clientY;el.classList.add("dragging");el.setPointerCapture(e.pointerId);});
+  el.addEventListener("pointermove",e=>{if(!down)return;dx=e.clientX-sx;dy=e.clientY-sy;
+    el.style.transform=`translate(${dx}px,${dy}px) rotate(${dx/14}deg)`;
+    like.style.opacity=Math.max(0,Math.min(1,dx/90));nope.style.opacity=Math.max(0,Math.min(1,-dx/90));});
+  const end=()=>{if(!down)return;down=false;el.classList.remove("dragging");
+    if(Math.abs(dx)>100) fling(el,c,dx>0);
+    else if(Math.abs(dx)<6&&Math.abs(dy)<6){el.style.transform="";openRecipe(c.r.id,c);}
+    else{el.style.transform="";like.style.opacity=0;nope.style.opacity=0;}
+    dx=dy=0;};
+  el.addEventListener("pointerup",end);el.addEventListener("pointercancel",end);
+}
+let flinging=false;
+function fling(el,c,right){
+  if(flinging) return; flinging=true;
+  el.classList.remove("dragging");
+  el.style.transition="transform .45s ease-in, opacity .45s";
+  el.querySelector(right?".like":".nope").style.opacity=1;
+  el.style.transform=`translate(${right?600:-600}px,${-60}px) rotate(${right?35:-35}deg)`;
+  el.style.opacity="0";
+  S.swiped[c.p.id+":"+c.r.id]=right?"R":"L";
+  save();
+  setTimeout(()=>{flinging=false;
+    if(right&&likesBack(c)){makeMatch(c);}
+    else if(right){toast(`💌 Sent ${c.p.name} a like for ${c.r.name}`);}
+    renderDeck();
+  },380);
+}
+function likesBack(c){
+  // Demo cooks: stable "random" decision per person+meal so it doesn't change on re-swipe, biased toward yes
+  let h=0;const k=c.p.id+c.r.id+(S.profile?S.profile.name:"");for(const ch of k)h=(h*31+ch.charCodeAt(0))>>>0;
+  return (h%100)<72;
+}
+function topCardEl(){const cs=$("deck").querySelectorAll(".card");return cs[cs.length-1];}
+$("btnYes").onclick=e=>{const el=topCardEl();if(el&&deck[0]){burst(e.clientX,e.clientY,["❤️","😋","✨"]);fling(el,deck[0],true);}};
+$("btnNo").onclick=()=>{const el=topCardEl();if(el&&deck[0])fling(el,deck[0],false);};
+$("btnInfo").onclick=()=>{if(deck[0])openRecipe(deck[0].r.id,deck[0]);};
+function resetSwipes(){for(const k in S.swiped) if(S.swiped[k]==="L") delete S.swiped[k];save();renderDeck();toast("↺ Passed cards are back");}
+
+/* ================= MATCH ================= */
+function makeMatch(c){
+  const m={id:"m"+Date.now(),pid:c.p.id,rid:c.r.id,you:c.you,them:c.them,missing:c.missing,msgs:[],t:Date.now(),unread:1};
+  m.msgs.push({from:"them",text:opener(c),t:Date.now()});
+  S.matches.unshift(m);save();updateBadge();
+  const M=me(),p=c.p,r=c.r;
+  $("match").innerHTML=`
+    <h1>It's a Match!</h1>
+    <div class="pair">${avatarHTML(M,"a1")}<div class="heart">❤️</div>${avatarHTML(p,"a2")}</div>
+    <div class="mealname"><span class="e">${r.emoji}</span>You and ${esc(p.name)} are making<br><b>${esc(r.name)}</b></div>
+    <button class="btn white" id="mSay">💬 Say hi to ${esc(p.name)}</button>
+    <button class="btn clear" id="mKeep">Keep swiping</button>`;
+  $("match").classList.add("show");
+  confetti();
+  $("mSay").onclick=()=>{$("match").classList.remove("show");openChat(m.id);};
+  $("mKeep").onclick=()=>$("match").classList.remove("show");
+}
+function opener(c){
+  const lines=[
+    `Heyy! ${c.r.name} sounds perfect 😍 I've got the ${c.them.join(" & ")}!`,
+    `A fellow ${c.r.name} fan?! I'll bring ${c.them[0]}, you bring ${c.you[0]} 🙌`,
+    `Okay ${c.r.emoji} ${c.r.name} date? I'm so in.`,
+    `Finally someone with ${c.you[0]}! Let's cook 👩‍🍳`
+  ];
+  return lines[(c.p.id.length+c.r.id.length)%lines.length];
+}
+function updateBadge(){
+  const n=S.matches.reduce((a,m)=>a+(m.unread||0),0);
+  const b=$("chatBadge");b.style.display=n?"grid":"none";b.textContent=n;
+}
+
+/* ================= CONFETTI ================= */
+function confetti(){
+  const cv=$("confetti"),ctx=cv.getContext("2d");cv.width=innerWidth;cv.height=innerHeight;
+  const cols=["#FF5A7A","#FF9F43","#FFD23F","#2ED47A","#4D7CFE","#9B5DE5","#fff"];
+  const ps=Array.from({length:160},()=>({x:cv.width/2,y:cv.height*0.35,vx:(Math.random()-.5)*16,vy:Math.random()*-16-4,
+    s:Math.random()*8+4,r:Math.random()*6,vr:(Math.random()-.5)*.4,c:cols[Math.floor(Math.random()*cols.length)]}));
+  let f=0;
+  (function tick(){ctx.clearRect(0,0,cv.width,cv.height);
+    ps.forEach(p=>{p.vy+=.45;p.vx*=.99;p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.r);
+      ctx.fillStyle=p.c;ctx.fillRect(-p.s/2,-p.s/4,p.s,p.s/2);ctx.restore();});
+    if(++f<170)requestAnimationFrame(tick);else ctx.clearRect(0,0,cv.width,cv.height);})();
+}
+
+/* ================= SOLO COOK ================= */
+function renderCook(){
+  const el=$("cookList");
+  if(!S.pantry.length){el.innerHTML=`<div class="empty"><div class="e">🥕</div><h3>Nothing in the pantry yet</h3><p>Add ingredients to see what you can make.</p><br><button class="btn" onclick="go('pantry')">Add ingredients</button></div>`;return;}
+  const all=soloRecipes();
+  const ready=all.filter(x=>!x.missing.length), almost=all.filter(x=>x.missing.length&&x.missing.length<=2);
+  const card=(x,i)=>`<button class="rcard" style="animation-delay:${i*40}ms" onclick="openRecipe('${x.r.id}')">
+    <div class="rh" style="background:linear-gradient(135deg,${x.r.c},#fff)">${x.r.emoji}<span class="pct">${x.pct}%</span></div>
+    <div class="rb"><div class="rn">${esc(x.r.name)}</div><div class="rm">⏱ ${x.r.time} min${x.missing.length?" · need "+x.missing.join(", "):""}</div></div></button>`;
+  el.innerHTML=
+    `<div class="sec">✅ Ready to cook <span class="hint">(${ready.length})</span></div>`+
+    (ready.length?`<div class="rgrid">${ready.map(card).join("")}</div>`:`<p class="hint">Nothing complete yet — check "Almost there" or match with someone to fill the gaps! 💞</p>`)+
+    `<div class="sec">🛒 Almost there <span class="hint">(${almost.length})</span></div>`+
+    (almost.length?`<div class="rgrid">${almost.map(card).join("")}</div>`:`<p class="hint">Add a few more basics to unlock more.</p>`);
+}
+
+/* ================= RECIPE SHEET ================= */
+function openRecipe(rid,combo){
+  const r=RBY[rid];if(!r)return;
+  const have=hasSet(S.pantry);
+  const theirs=combo?new Set(combo.p.pantry):new Set();
+  const rows=r.ing.map(i=>{
+    let tag,cls;
+    if(have.has(i)){tag="You";cls="you";}else if(theirs.has(i)){tag=combo.p.name;cls="them";}else{tag="Need";cls="need";}
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #EAE3F5">
+      <span style="font-weight:800">${emo(i)} ${cap(i)}</span><span class="chip ${cls}">${esc(tag)}</span></div>`;}).join("");
+  $("recipeSheet").innerHTML=`
+    <div class="grab"></div>
+    <div class="shead"><h2>${esc(r.name)}</h2><button class="xbtn" onclick="closeOv('recipeOv')">✕</button></div>
+    <div class="rhero" style="background:linear-gradient(135deg,${r.c},#fff)"><span style="animation:floaty 3s infinite">${r.emoji}</span></div>
+    <div style="padding:0 18px;display:flex;gap:8px;flex-wrap:wrap"><span class="chip">⏱ ${r.time} min</span><span class="chip">📶 ${r.diff}</span><span class="chip">🧂 + salt, pepper, oil</span></div>
+    <div class="sec" style="padding:0 18px">🧾 Ingredients</div>
+    <div style="padding:0 18px">${rows}</div>
+    <div class="sec" style="padding:0 18px">👣 Steps</div>
+    <ol class="steps">${r.steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`;
+  $("recipeOv").classList.add("show");
+}
+function closeOv(id){$(id).classList.remove("show");}
+document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{if(e.target===o)o.classList.remove("show");}));
+
+/* ================= PANTRY ================= */
+let curCat="all";
+function addIng(raw,ev){
+  const parts=String(raw).split(/,|\band\b|\n/).map(norm).filter(Boolean);
+  let added=0;
+  for(const n of parts){
+    if(STAPLES.includes(n)){toast(`🧂 ${cap(n)} is always assumed — no need to add it`);continue;}
+    if(!S.pantry.includes(n)){S.pantry.push(n);added++;}
+  }
+  if(added){
+    renderPantry();renderQuick();
+    if(ev&&ev.clientX) burst(ev.clientX,ev.clientY,["✨","⭐","💫"]);
+    const unknown=parts.filter(n=>!ING[n]&&!STAPLES.includes(n));
+    if(unknown.length) toast(`Added! (“${unknown[0]}” isn't in any recipes yet)`);
+  }
+  return added;
+}
+function removeIng(i,btn){
+  const chip=btn.closest(".ing");chip.classList.add("out");
+  setTimeout(()=>{S.pantry=S.pantry.filter(x=>x!==i);renderPantry();renderQuick();},230);
+}
+function renderPantry(){
+  const cols=["#FF5A7A","#FF9F43","#2ED47A","#4D7CFE","#9B5DE5","#1FC8C8","#F7B32B"];
+  $("pantry").innerHTML=S.pantry.length?S.pantry.map((i,k)=>`<span class="ing" style="background:${cols[k%cols.length]}">${emo(i)} ${esc(i)}<button onclick="removeIng('${esc(i)}',this)" aria-label="Remove">✕</button></span>`).join("")
+    :`<p class="hint">Nothing yet — type above, snap a photo, or tap quick-add below 👇</p>`;
+  $("pantryCount").textContent=S.pantry.length?`${S.pantry.length} ingredient${S.pantry.length>1?"s":""} · tap ✕ to remove`:"";
+}
+function renderCats(){
+  $("cats").innerHTML=CATS.map(([k,l])=>`<button class="${k===curCat?"on":""}" data-c="${k}">${l}</button>`).join("");
+  $("cats").querySelectorAll("button").forEach(b=>b.onclick=()=>{curCat=b.dataset.c;renderCats();renderQuick();});
+}
+function renderQuick(){
+  const list=Object.keys(ING).filter(k=>curCat==="all"||ING[k][1]===curCat);
+  $("quick").innerHTML=list.map(k=>`<button class="${S.pantry.includes(k)?"have":""}" data-i="${esc(k)}"><span class="em">${ING[k][0]}</span>${esc(k)}</button>`).join("");
+  $("quick").querySelectorAll("button").forEach(b=>b.onclick=e=>{
+    const i=b.dataset.i;
+    if(S.pantry.includes(i)){S.pantry=S.pantry.filter(x=>x!==i);renderPantry();renderQuick();}
+    else addIng(i,e);
+  });
+}
+function renderSuggest(){
+  const q=norm($("ingInput").value);
+  if(!q){$("suggest").innerHTML="";return;}
+  const raw=$("ingInput").value.toLowerCase().trim();
+  const hits=Object.keys(ING).filter(k=>(k.includes(raw)||k.startsWith(q))&&!S.pantry.includes(k)).slice(0,6);
+  $("suggest").innerHTML=hits.map(h=>`<button data-i="${esc(h)}">${emo(h)} ${esc(h)}</button>`).join("");
+  $("suggest").querySelectorAll("button").forEach(b=>b.onclick=e=>{addIng(b.dataset.i,e);$("ingInput").value="";renderSuggest();$("ingInput").focus();});
+}
+$("ingInput").addEventListener("input",renderSuggest);
+$("ingInput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("ingAdd").click();}});
+$("ingAdd").onclick=e=>{const v=$("ingInput").value;if(!v.trim())return;addIng(v,e);$("ingInput").value="";renderSuggest();};
+$("saveBtn").onclick=e=>{
+  save();burst(e.clientX,e.clientY,["🍳","🥗","🍝","🌮"]);
+  const n=buildDeck().length, s=soloRecipes().filter(x=>!x.missing.length).length;
+  toast(`Saved! ${s} solo meal${s===1?"":"s"} · ${n} cook-together match${n===1?"":"es"} 🎉`);
+  setTimeout(()=>go("home"),700);
+};
+
+/* ================= PHOTOS ================= */
+let photoTarget="pantry";
+function pickPhoto(target){photoTarget=target;$("fileIn").value="";$("fileIn").click();}
+$("snapBtn").onclick=()=>pickPhoto("pantry");
+$("fileIn").addEventListener("change",e=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  const rd=new FileReader();rd.onload=()=>shrinkImage(rd.result,700,handlePhoto);rd.readAsDataURL(f);
+});
+window.onNativePhoto=function(dataUrl){shrinkImage(dataUrl,700,handlePhoto);};
+function shrinkImage(src,max,cb){
+  const img=new Image();img.onload=()=>{const sc=Math.min(1,max/Math.max(img.width,img.height));
+    const c=document.createElement("canvas");c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);
+    c.getContext("2d").drawImage(img,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",.75));};
+  img.onerror=()=>toast("Couldn't read that photo");img.src=src;
+}
+function handlePhoto(url){
+  if(photoTarget==="profile"){
+    if(!S.profile)S.profile={};
+    S.profile.photo=url;save();refreshMe();openProfile();return;
+  }
+  S.lastPhoto=url;save();openPhotoTagger();
+}
+function openPhotoTagger(){
+  const sel=new Set();
+  const draw=()=>{
+    $("photoSheet").innerHTML=`
+      <div class="grab"></div>
+      <div class="shead"><h2>What's in the photo? 👀</h2><button class="xbtn" onclick="closeOv('photoOv')">✕</button></div>
+      <div style="padding:10px 16px">
+        <img src="${S.lastPhoto}" style="width:100%;max-height:230px;object-fit:cover;border-radius:18px;box-shadow:var(--shadow)">
+        <p class="hint" style="margin:10px 2px">Tap everything you can see, then add them all at once.</p>
+        <div class="quick" id="tagGrid">${Object.keys(ING).map(k=>`<button class="${sel.has(k)||S.pantry.includes(k)?"have":""}" data-i="${esc(k)}"><span class="em">${ING[k][0]}</span>${esc(k)}</button>`).join("")}</div>
+        <button class="btn green block" id="tagDone" style="margin-top:14px">Add ${sel.size||""} to pantry</button>
+      </div>`;
+    $("tagGrid").querySelectorAll("button").forEach(b=>b.onclick=()=>{const i=b.dataset.i;if(S.pantry.includes(i))return;
+      sel.has(i)?sel.delete(i):sel.add(i);const st=$("photoSheet").scrollTop;draw();$("photoSheet").scrollTop=st;});
+    $("tagDone").onclick=e=>{const n=addIng([...sel].join(","),e);closeOv("photoOv");if(n)toast(`📸 Added ${n} from your photo`);};
+  };
+  draw();$("photoOv").classList.add("show");
+}
+
+/* ================= CHATS ================= */
+function renderChats(){
+  if(!S.matches.length){
+    $("mlist").innerHTML="";
+    $("clist").innerHTML=`<div class="empty"><div class="e">💞</div><h3>No matches yet</h3><p>Swipe right on meals you'd love to cook together.</p><br><button class="btn" onclick="go('home')">Start swiping</button></div>`;
+    return;
+  }
+  $("mlist").innerHTML=S.matches.map(m=>{const p=PBY[m.pid];return `<button class="mbub" onclick="openChat('${m.id}')">${avatarHTML(p)}${esc(p.name)}</button>`;}).join("");
+  $("clist").innerHTML=S.matches.map(m=>{const p=PBY[m.pid],r=RBY[m.rid],last=m.msgs[m.msgs.length-1];
+    return `<button class="citem" onclick="openChat('${m.id}')">${avatarHTML(p)}<div class="t"><b>${esc(p.name)} ${m.unread?'<span class="chip you" style="font-size:10px;padding:2px 7px">NEW</span>':""}</b>
+      <span>${last?(last.from==="me"?"You: ":"")+esc(last.text):"Say hi!"}</span></div><span class="meal-mini">${r.emoji}</span></button>`;}).join("");
+}
+let curChat=null;
+function openChat(mid){
+  const m=S.matches.find(x=>x.id===mid);if(!m)return;
+  curChat=m;m.unread=0;save();updateBadge();
+  const p=PBY[m.pid],r=RBY[m.rid];
+  $("chatAv").outerHTML=avatarHTML(p).replace('class="avatar ','id="chatAv" class="avatar ');
+  $("chatName").textContent=p.name;
+  $("chatMeta").textContent=`📍 ${p.dist} mi · matched over ${r.name}`;
+  $("chatMeal").innerHTML=`<span class="e">${r.emoji}</span><div style="flex:1">${esc(r.name)}<div class="hint" style="margin:0">You: ${m.you.join(", ")} · ${esc(p.name)}: ${m.them.join(", ")}${m.missing.length?" · grab: "+m.missing.join(", "):""}</div></div><button class="btn" style="padding:8px 12px;font-size:13px" onclick="openRecipe('${r.id}',{p:PBY['${p.id}']})">Recipe</button>`;
+  const qrs=["When are you free? 📅","Your kitchen or mine? 🏠",`I'll bring the ${m.you[0]}!`,"Want to add dessert? 🍫"];
+  $("qr").innerHTML=qrs.map(q=>`<button>${esc(q)}</button>`).join("");
+  $("qr").querySelectorAll("button").forEach(b=>b.onclick=()=>sendMsg(b.textContent));
+  drawMsgs();
+  $("chat").classList.add("show");
+}
+function drawMsgs(){
+  $("msgs").innerHTML=curChat.msgs.map(x=>`<div class="msg ${x.from}">${esc(x.text)}</div>`).join("");
+  $("msgs").scrollTop=$("msgs").scrollHeight;
+}
+function sendMsg(text){
+  text=String(text||"").trim();if(!text||!curChat)return;
+  curChat.msgs.push({from:"me",text,t:Date.now()});save();drawMsgs();
+  const m=curChat;
+  const ty=document.createElement("div");ty.className="typing";ty.innerHTML="<i></i><i></i><i></i>";
+  setTimeout(()=>{if(curChat===m){$("msgs").appendChild(ty);$("msgs").scrollTop=$("msgs").scrollHeight;}},500);
+  setTimeout(()=>{ty.remove();m.msgs.push({from:"them",text:reply(m,text),t:Date.now()});
+    if(curChat===m)drawMsgs();else m.unread=(m.unread||0)+1;save();updateBadge();},1700+Math.random()*900);
+}
+function reply(m,text){
+  const p=PBY[m.pid],r=RBY[m.rid],t=text.toLowerCase();
+  if(/free|when|time|date|tonight|weekend/.test(t)) return ["Saturday evening works for me! 🌅","How about tomorrow around 6? 🕕","This weekend! I'll clear my schedule 😄"][m.msgs.length%3];
+  if(/kitchen|place|mine|yours|where/.test(t)) return ["My kitchen has the better pans 😏 but I'm easy!","Let's do yours — I'll bring my apron 👩‍🍳","Maybe a picnic-style cook at the park? 🌳"][m.msgs.length%3];
+  if(/dessert|sweet|chocolate/.test(t)) return "Dessert is ALWAYS a yes 🍫🍓";
+  if(/bring/.test(t)) return `Perfect, and I've got the ${m.them.join(" & ")} covered ✅`;
+  if(/hi|hey|hello|yo/.test(t)) return `Hey hey! 👋 So excited for ${r.name} ${r.emoji}`;
+  return [`Haha love that 😂`,`Honestly can't wait for this ${r.emoji}`,`You seem fun — ${r.name} is gonna slap 🔥`,`Deal! 🤝`][m.msgs.length%4];
+}
+$("sendBtn").onclick=()=>{sendMsg($("msgInput").value);$("msgInput").value="";};
+$("msgInput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("sendBtn").click();}});
+$("chatBack").onclick=closeChat;
+function closeChat(){$("chat").classList.remove("show");curChat=null;renderChats();}
+
+/* ================= PROFILE ================= */
+function refreshMe(){
+  const p=S.profile;const b=$("meBtn");
+  b.innerHTML=p&&p.photo?`<img src="${p.photo}" alt="">`:(p&&p.av)||"🙂";
+}
+function openProfile(){
+  const p=S.profile||{name:"",age:"",bio:"",av:"😋",vibe:"both"};
+  $("profileSheet").innerHTML=`
+    <div class="grab"></div>
+    <div class="shead"><h2>My profile</h2><button class="xbtn" onclick="closeOv('profileOv')">✕</button></div>
+    <div style="padding:6px 18px">
+      <div style="display:flex;justify-content:center;margin:6px 0 12px">
+        <div style="position:relative"><div class="bigav">${avatarHTML(Object.assign({col:"#FFE6EC"},p))}</div>
+        <button onclick="pickPhoto('profile')" style="position:absolute;right:-4px;bottom:-4px;width:36px;height:36px;border-radius:50%;background:var(--pink);color:#fff;font-size:16px;box-shadow:var(--shadow)">📷</button></div>
+      </div>
+      <label class="l">Or pick an emoji</label>
+      <div class="avpick" id="avpick">${AVATARS.map(a=>`<button class="${a===p.av&&!p.photo?"on":""}">${a}</button>`).join("")}</div>
+      <label class="l">Name</label><input class="field" id="pName" value="${esc(p.name||"")}" placeholder="Your first name">
+      <label class="l">Age</label><input class="field" id="pAge" type="number" min="18" max="99" value="${esc(p.age||"")}" placeholder="18+">
+      <label class="l">Bio</label><textarea class="field" id="pBio" rows="2" placeholder="Favorite thing to cook?">${esc(p.bio||"")}</textarea>
+      <label class="l">Looking for</label>
+      <div class="seg" id="pVibe">${[["date","💘 Dates"],["friends","🤝 Friends"],["both","✨ Both"]].map(([k,l])=>`<button data-v="${k}" class="${(p.vibe||"both")===k?"on":""}">${l}</button>`).join("")}</div>
+      <button class="btn block" id="pSave" style="margin-top:18px">Save profile</button>
+      <p class="hint" style="margin-top:16px;text-align:center">Nearby cooks in this version are demo profiles.<br>
+        <button style="text-decoration:underline;color:var(--muted);font-size:12px" id="pReset">Reset all app data</button></p>
+    </div>`;
+  let av=p.av||"😋",vibe=p.vibe||"both";
+  $("avpick").querySelectorAll("button").forEach(b=>b.onclick=()=>{av=b.textContent;
+    $("avpick").querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");
+    if(S.profile){delete S.profile.photo;}});
+  $("pVibe").querySelectorAll("button").forEach(b=>b.onclick=()=>{vibe=b.dataset.v;$("pVibe").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));});
+  $("pSave").onclick=e=>{
+    const name=$("pName").value.trim(),age=parseInt($("pAge").value,10);
+    if(!name){toast("Add your name 🙂");return;}
+    if(!age||age<18){toast("PlateMate is for ages 18+");return;}
+    S.profile=Object.assign(S.profile||{},{name,age,bio:$("pBio").value.trim(),av,vibe});
+    save();refreshMe();closeOv("profileOv");burst(e.clientX,e.clientY,["💖","✨"]);toast("Profile saved 💖");
+  };
+  $("pReset").onclick=()=>{if(confirm("Delete your profile, pantry and matches?")){localStorage.removeItem(KEY);S=fresh();location.reload();}};
+  $("profileOv").classList.add("show");
+}
+$("meBtn").onclick=openProfile;
+
+/* ================= NAV ================= */
+let curView="home";
+function go(v){
+  curView=v;
+  document.querySelectorAll(".view").forEach(x=>x.classList.toggle("active",x.id==="v-"+v));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.v===v));
+  if(v==="home")renderDeck(); if(v==="cook")renderCook(); if(v==="chats")renderChats();
+  if(v==="pantry"){renderPantry();renderCats();renderQuick();}
+}
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>go(t.dataset.v));
+window.appBack=function(){
+  if($("match").classList.contains("show")){$("match").classList.remove("show");return true;}
+  if($("chat").classList.contains("show")){closeChat();return true;}
+  for(const id of ["photoOv","recipeOv","profileOv"]) if($(id).classList.contains("show")){closeOv(id);return true;}
+  if(curView!=="home"){go("home");return true;}
+  return false;
+};
+
+/* ================= ONBOARDING ================= */
+function showOnboarding(){
+  const o=$("onb");
+  const fl=["🍅","🥑","🧀","🍝","🌮","🥚","🍓","🥕","🍜","🍩"];
+  o.innerHTML=`<div class="floaters">${fl.map((f,i)=>`<span style="left:${(i*10+3)%95}%;animation-delay:${-i*0.7}s;animation-duration:${6+i%4}s">${f}</span>`).join("")}</div>
+    <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;width:100%">
+      <div class="bigplate">🍽️</div>
+      <h1>PlateMate</h1>
+      <p>Add what's in your kitchen. Swipe on meals. Match with someone who has the rest — and cook together. 💞</p>
+      <button class="btn" id="onbGo">Let's get cooking →</button>
+    </div>`;
+  o.classList.add("show");
+  $("onbGo").onclick=()=>{o.classList.remove("show");openProfile();
+    const once=()=>{ if(!$("profileOv").classList.contains("show")){clearInterval(iv);if(S.profile&&S.profile.name){go("pantry");toast("Now add a few ingredients 🧺");}}};
+    const iv=setInterval(once,400);};
+}
+
+/* ================= BOOT ================= */
+refreshMe();updateBadge();go("home");
+if(!S.profile||!S.profile.name) showOnboarding();
+</script>
+</body>
+</html>
