@@ -1,18 +1,25 @@
 package com.platemate.app;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.util.Base64;
+import android.webkit.GeolocationPermissions;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+
+import androidx.webkit.WebViewAssetLoader;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -20,8 +27,15 @@ import java.io.InputStream;
 public class MainActivity extends Activity {
 
     private static final int REQ_PHOTO = 42;
+    private static final int REQ_LOCATION = 43;
+    // Served from a real https origin so Firebase (auth, Firestore, IndexedDB) works normally.
+    private static final String HOST = "appassets.androidplatform.net";
+    private static final String START_URL = "https://" + HOST + "/assets/www/index.html";
+
     private WebView web;
     private ValueCallback<Uri[]> pendingCallback;
+    private GeolocationPermissions.Callback geoCallback;
+    private String geoOrigin;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,10 +47,29 @@ public class MainActivity extends Activity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
-        s.setAllowFileAccess(true);
+        s.setGeolocationEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
 
-        web.setWebViewClient(new WebViewClient());
+        final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .build();
+
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                return assetLoader.shouldInterceptRequest(request.getUrl());
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                Uri u = request.getUrl();
+                if (HOST.equals(u.getHost())) return false;
+                if (!request.isForMainFrame()) return false;
+                try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception ignored) { }
+                return true;
+            }
+        });
+
         web.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
@@ -59,12 +92,33 @@ public class MainActivity extends Activity {
                 }
                 return true;
             }
+
+            @Override
+            public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
+                if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    callback.invoke(origin, true, false);
+                } else {
+                    geoOrigin = origin;
+                    geoCallback = callback;
+                    requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_LOCATION);
+                }
+            }
         });
 
         if (savedInstanceState != null) {
             web.restoreState(savedInstanceState);
         } else {
-            web.loadUrl("file:///android_asset/www/index.html");
+            web.loadUrl(START_URL);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == REQ_LOCATION && geoCallback != null) {
+            boolean ok = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+            geoCallback.invoke(geoOrigin, ok, false);
+            geoCallback = null;
         }
     }
 
@@ -91,7 +145,7 @@ public class MainActivity extends Activity {
                 if (in1 != null) in1.close();
                 int sample = 1;
                 int biggest = Math.max(bounds.outWidth, bounds.outHeight);
-                while (biggest / sample > 1600) sample *= 2;
+                while (biggest / sample > 2000) sample *= 2;
                 BitmapFactory.Options opts = new BitmapFactory.Options();
                 opts.inSampleSize = sample;
                 InputStream in2 = getContentResolver().openInputStream(uri);
@@ -104,14 +158,14 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) { }
         if (bmp == null) return;
 
-        int max = 800;
+        int max = 1024;
         int w = bmp.getWidth(), h = bmp.getHeight();
         if (Math.max(w, h) > max) {
             float scale = (float) max / Math.max(w, h);
             bmp = Bitmap.createScaledBitmap(bmp, Math.round(w * scale), Math.round(h * scale), true);
         }
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        bmp.compress(Bitmap.CompressFormat.JPEG, 80, out);
+        bmp.compress(Bitmap.CompressFormat.JPEG, 85, out);
         String b64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
         web.evaluateJavascript(
                 "window.onNativePhoto && window.onNativePhoto('data:image/jpeg;base64," + b64 + "')",

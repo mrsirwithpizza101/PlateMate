@@ -239,6 +239,33 @@ label.l{display:block;font-weight:900;font-size:13px;margin:12px 2px 6px;color:#
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .burst{position:fixed;pointer-events:none;z-index:120;font-size:26px;animation:burst .9s ease-out forwards}
 @keyframes burst{to{transform:translate(var(--dx),var(--dy)) scale(.4);opacity:0}}
+
+.spin{width:46px;height:46px;border:5px solid #FFE0E7;border-top-color:var(--pink);border-radius:50%;animation:rot .9s linear infinite;margin:0 auto 6px}
+@keyframes rot{to{transform:rotate(360deg)}}
+.likesyou{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:#fff;color:var(--pink);font-weight:900;font-size:12px;
+  padding:6px 12px;border-radius:14px;z-index:2;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.15);animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.08)}}
+.scanwrap{position:relative;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+.scanwrap img{width:100%;max-height:240px;object-fit:cover;display:block}
+.scanwrap .scanline{display:none}
+.scanwrap.on img{filter:saturate(1.2) brightness(.9)}
+.scanwrap.on .scanline{display:block;position:absolute;left:0;right:0;height:5px;background:linear-gradient(90deg,transparent,#2ED47A,#fff,#2ED47A,transparent);
+  box-shadow:0 0 22px 6px rgba(46,212,122,.7);animation:scan 1.3s ease-in-out infinite alternate}
+@keyframes scan{from{top:0}to{top:calc(100% - 5px)}}
+.sparkles{position:absolute;inset:0;display:flex;justify-content:space-around;align-items:center;font-size:30px;pointer-events:none}
+.sparkles span{animation:twinkle 1s ease-in-out infinite}
+.sparkles span:nth-child(2){animation-delay:.3s}.sparkles span:nth-child(3){animation-delay:.6s}
+@keyframes twinkle{0%,100%{transform:scale(.6);opacity:.4}50%{transform:scale(1.2);opacity:1}}
+.aistat{margin:12px 2px 0;padding:10px 12px;border-radius:14px;background:#F3EFFF;font-size:14px;font-weight:700}
+.aistat.ok{background:#DDF8EA;color:#13824A}.aistat.bad{background:#FFE6EC;color:#C2294B}
+.quick button.found{animation:pop .45s cubic-bezier(.3,1.7,.5,1)}
+.suggest .xtra.on{background:#DDF8EA;color:#13824A}
+.menu button{display:block;width:100%;text-align:left;background:#fff;border-radius:16px;padding:14px 16px;margin-bottom:10px;font-weight:800;font-size:16px;box-shadow:0 3px 10px rgba(0,0,0,.05)}
+.menu button.danger{color:#C2294B}
+.tips{padding:6px 22px 10px 38px;font-size:15px;line-height:1.45}.tips li{margin:8px 0}
+.modepill{margin:14px auto 0;text-align:center;font-size:13px;font-weight:800;padding:8px 12px;border-radius:14px;background:#F3EFFF;color:#5b5470}
+.modepill.live{background:#DDF8EA;color:#13824A}
+.btn[disabled]{opacity:.6}
 </style>
 </head>
 <body>
@@ -289,7 +316,7 @@ label.l{display:block;font-weight:900;font-size:13px;margin:12px 2px 6px;color:#
         <div class="photo-box" id="photoBox">
           <div style="font-size:44px">📸</div>
           <b>Snap your fridge or counter</b>
-          <p class="hint" style="margin:4px 0 12px">Take a photo, then tap what you see to add it</p>
+          <p class="hint" style="margin:4px 0 12px">Our AI spots the food for you 🤖✨</p>
           <button class="btn" id="snapBtn">Take / choose photo</button>
         </div>
       </div>
@@ -322,6 +349,8 @@ label.l{display:block;font-weight:900;font-size:13px;margin:12px 2px 6px;color:#
 <div class="overlay" id="recipeOv"><div class="sheet" id="recipeSheet"></div></div>
 <!-- profile sheet -->
 <div class="overlay" id="profileOv"><div class="sheet" id="profileSheet"></div></div>
+<!-- chat menu sheet -->
+<div class="overlay" id="menuOv" style="z-index:70"><div class="sheet" id="menuSheet"></div></div>
 <!-- photo tag sheet -->
 <div class="overlay" id="photoOv"><div class="sheet" id="photoSheet"></div></div>
 
@@ -330,7 +359,8 @@ label.l{display:block;font-weight:900;font-size:13px;margin:12px 2px 6px;color:#
   <div class="ch">
     <button class="xbtn" id="chatBack">←</button>
     <div class="avatar" id="chatAv"></div>
-    <div><b id="chatName"></b><small id="chatMeta"></small></div>
+    <div style="flex:1;min-width:0"><b id="chatName"></b><small id="chatMeta"></small></div>
+    <button class="xbtn" id="chatMenu" aria-label="More">⋯</button>
   </div>
   <div class="mealbar" id="chatMeal"></div>
   <div class="msgs" id="msgs"></div>
@@ -351,6 +381,8 @@ label.l{display:block;font-weight:900;font-size:13px;margin:12px 2px 6px;color:#
 <div class="toast" id="toast"></div>
 <input type="file" id="fileIn" accept="image/*" capture="environment" style="display:none">
 
+<script src="firebase-config.js"></script>
+<script src="cloud.bundle.js"></script>
 <script>
 "use strict";
 /* ================= DATA ================= */
@@ -467,19 +499,23 @@ const PBY = Object.fromEntries(PEOPLE.map(p=>[p.id,p]));
 const AVATARS = ["😋","😎","🤠","🥳","🧑‍🍳","👩‍🍳","👨‍🍳","🦊","🐼","🐸","🌮","🍕"];
 
 /* ================= STATE ================= */
-const KEY = "platemate_v1";
+const KEY = "platemate_v2";
+const LIVE = !!window.Cloud;
+let ME_UID = null;
+const L = {people:[], users:{}, loaded:false, loading:false, error:null, matches:[], incoming:new Set(), firstMatchSnap:true, shown:new Set(), chatUnsub:null, msgs:[]};
 let S = load();
-function fresh(){return {profile:null,pantry:[],swiped:{},matches:[],unread:0,lastPhoto:null};}
+function fresh(){return {profile:null,pantry:[],swiped:{},matches:[],seen:{},known:{},blocked:[],radius:"near",loc:null};}
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY));return s&&typeof s==="object"?Object.assign(fresh(),s):fresh();}catch(e){return fresh();}}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast("Storage is full — photo not saved");}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast("Phone storage is full");}}
 
 /* ================= HELPERS ================= */
 const $=id=>document.getElementById(id);
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const emo=i=>(ING[i]||["🥄"])[0];
 const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+const short=e=>String((e&&(e.code||e.message))||e||"error").replace(/^Firebase(Error)?:?\s*/,"").slice(0,90);
 function norm(raw){
-  let s=String(raw).toLowerCase().trim().replace(/\s+/g," ").replace(/^(a |an |some |fresh |frozen |canned )/,"");
+  let s=String(raw).toLowerCase().trim().replace(/\s+/g," ").replace(/^(a |an |some |fresh |frozen |canned |sliced |shredded )/,"");
   if(!s) return "";
   if(ALIAS[s]) return ALIAS[s];
   if(ING[s]||STAPLES.includes(s)) return s;
@@ -487,19 +523,84 @@ function norm(raw){
   if(s.endsWith("es")&&ING[s.slice(0,-2)]) return s.slice(0,-2);
   if(s.endsWith("s")&&ING[s.slice(0,-1)]) return s.slice(0,-1);
   if(s.endsWith("s")&&ALIAS[s.slice(0,-1)]) return ALIAS[s.slice(0,-1)];
-  return s;
+  return s.slice(0,30);
 }
-function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2200);}
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2600);}
 function avatarHTML(p,cls){
-  if(p.photo) return `<div class="avatar ${cls||""}" style="background:${p.col||"#FFE6EC"}"><img src="${p.photo}" alt=""></div>`;
-  return `<div class="avatar ${cls||""}" style="background:${p.col||"#FFE6EC"}">${p.av||"😋"}</div>`;
+  p=p||{};
+  if(p.photo) return `<div class="avatar ${cls||""}" style="background:${p.col||"#FFE6EC"}"><img src="${esc(p.photo)}" alt=""></div>`;
+  return `<div class="avatar ${cls||""}" style="background:${p.col||"#FFE6EC"}">${esc(p.av||"😋")}</div>`;
 }
 function me(){return Object.assign({col:"#FFE6EC"},S.profile||{name:"You",av:"😋"});}
 function burst(x,y,chars){
+  if(!x&&!y){x=innerWidth/2;y=innerHeight/2;}
   for(let i=0;i<8;i++){const b=document.createElement("div");b.className="burst";b.textContent=chars[i%chars.length];
     b.style.left=x+"px";b.style.top=y+"px";const a=Math.random()*Math.PI*2,d=60+Math.random()*60;
     b.style.setProperty("--dx",Math.cos(a)*d+"px");b.style.setProperty("--dy",Math.sin(a)*d+"px");
     document.body.appendChild(b);setTimeout(()=>b.remove(),900);}
+}
+const PALETTE=["#FF7FA8","#4D7CFE","#FF9F43","#2ED47A","#9B5DE5","#1FC8C8","#FFD23F","#FF5A7A"];
+function colorFor(id){let h=0;for(const c of String(id))h=(h*31+c.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];}
+
+/* ---- location (rounded; only a ~25-mile grid cell is used to search) ---- */
+const B32="0123456789bcdefghjkmnpqrstuvwxyz";
+function geohash(lat,lng,p){let idx=0,bit=0,even=true,h="";const la=[-90,90],lo=[-180,180];
+  while(h.length<p){if(even){const m=(lo[0]+lo[1])/2;if(lng>=m){idx=idx*2+1;lo[0]=m;}else{idx*=2;lo[1]=m;}}
+    else{const m=(la[0]+la[1])/2;if(lat>=m){idx=idx*2+1;la[0]=m;}else{idx*=2;la[1]=m;}}
+    even=!even;if(++bit===5){h+=B32[idx];bit=0;idx=0;}}return h;}
+function cells(lat,lng){const out=new Set();for(const a of[-1,0,1])for(const b of[-1,0,1])
+  out.add(geohash(Math.max(-89.9,Math.min(89.9,lat+a*0.176)),((lng+b*0.352+540)%360)-180,4));return [...out];}
+function miles(a,b){const R=3959,r=x=>x*Math.PI/180,dl=r(b.lat-a.lat),dg=r(b.lng-a.lng);
+  const h=Math.sin(dl/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dg/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+const round05=x=>Math.round(x*20)/20;
+function getLocation(){return new Promise(res=>{if(!navigator.geolocation)return res(null);
+  navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lng:p.coords.longitude}),()=>res(null),{enableHighAccuracy:false,timeout:15000,maximumAge:3600000});});}
+async function ensureLocation(){
+  if(S.loc||S.radius!=="near") return;
+  const loc=await getLocation();
+  if(loc){S.loc={lat:round05(loc.lat),lng:round05(loc.lng)};save();}
+  else{S.radius="any";save();toast("📍 No location — showing cooks anywhere");}
+}
+
+/* ================= PEOPLE ================= */
+function toPerson(u){
+  return {id:u.uid,name:u.name||"Cook",age:u.age||"",av:u.av||"😋",photo:u.photo||null,col:colorFor(u.uid),bio:u.bio||"",
+    vibe:u.vibe||"both",pantry:Array.isArray(u.pantry)?u.pantry:[],blocked:Array.isArray(u.blocked)?u.blocked:[],
+    dist:(S.loc&&typeof u.lat==="number")?Math.max(1,Math.round(miles(S.loc,{lat:u.lat,lng:u.lng}))):null};
+}
+function personById(id){return LIVE?L.users[id]:PBY[id];}
+async function loadUser(id){
+  if(L.users[id]) return L.users[id];
+  try{const u=await Cloud.getUser(id);L.users[id]=u?toPerson(u):{id,name:"Former cook",av:"👻",col:"#ddd",pantry:[],blocked:[],gone:true};}
+  catch(e){L.users[id]={id,name:"…",av:"⏳",col:"#eee",pantry:[],blocked:[]};}
+  return L.users[id];
+}
+function candidates(){
+  if(!LIVE) return PEOPLE;
+  const bl=new Set(S.blocked);
+  return L.people.filter(p=>p.id!==ME_UID&&!bl.has(p.id)&&!p.blocked.includes(ME_UID));
+}
+function matchedIds(){
+  return LIVE?new Set(L.matches.filter(m=>!m.closed).map(m=>m.other)):new Set(S.matches.map(m=>m.pid));
+}
+async function syncMe(){
+  if(!LIVE||!ME_UID||!S.profile||!S.profile.name) return;
+  const p=S.profile;
+  const d={name:p.name,age:parseInt(p.age,10)||18,bio:p.bio||"",av:p.av||"😋",vibe:p.vibe||"both",
+    pantry:S.pantry.slice(0,80),photo:p.photo||null,blocked:S.blocked.slice(0,500)};
+  if(S.loc){d.lat=S.loc.lat;d.lng=S.loc.lng;d.gh4=geohash(S.loc.lat,S.loc.lng,4);}
+  try{await Cloud.saveMe(d);}catch(e){console.error(e);toast("Couldn't sync: "+short(e));}
+}
+async function refreshPeople(){
+  if(!LIVE||!ME_UID) return;
+  L.loading=true;L.error=null;if(curView==="home"&&!flinging)renderDeck();
+  try{
+    const near=S.radius==="near"&&S.loc;
+    const list=await Cloud.findCooks(near?cells(S.loc.lat,S.loc.lng):null);
+    L.people=list.map(toPerson);L.people.forEach(p=>L.users[p.id]=p);
+  }catch(e){L.error=short(e);console.error(e);}
+  L.loading=false;L.loaded=true;
+  if(curView==="home"&&!flinging)renderDeck();
 }
 
 /* ================= MATCHING ENGINE ================= */
@@ -509,47 +610,68 @@ function soloRecipes(){
   return RECIPES.map(r=>{const missing=r.ing.filter(i=>!have.has(i));return {r,missing,pct:Math.round(100*(r.ing.length-missing.length)/r.ing.length)};})
     .filter(x=>x.pct>0).sort((a,b)=>a.missing.length-b.missing.length||b.pct-a.pct);
 }
+function split(r,minePantry,theirPantry){
+  const mine=new Set(minePantry),theirs=new Set(theirPantry||[]);
+  return {you:r.ing.filter(i=>mine.has(i)),them:r.ing.filter(i=>theirs.has(i)&&!mine.has(i)),missing:r.ing.filter(i=>!mine.has(i)&&!theirs.has(i))};
+}
 function duoOptions(person){
-  const mine=new Set(S.pantry), theirs=new Set(person.pantry);
   const out=[];
   for(const r of RECIPES){
-    const you=r.ing.filter(i=>mine.has(i));
-    const them=r.ing.filter(i=>theirs.has(i)&&!mine.has(i));
-    const missing=r.ing.filter(i=>!mine.has(i)&&!theirs.has(i));
-    if(you.length===0||them.length===0||missing.length>1) continue;
-    out.push({r,you,them,missing,score:(missing.length?0:100)+you.length+them.length});
+    const s=split(r,S.pantry,person.pantry);
+    if(!s.you.length||!s.them.length||s.missing.length>1) continue;
+    const liked=L.incoming.has(person.id+":"+r.id);
+    out.push(Object.assign({r,liked,score:(liked?1000:0)+(s.missing.length?0:100)+s.you.length+s.them.length},s));
   }
   return out.sort((a,b)=>b.score-a.score);
 }
 function buildDeck(){
-  const cards=[];
-  for(const p of PEOPLE){
-    if(S.matches.some(m=>m.pid===p.id)) continue;
+  const cards=[],done=matchedIds();
+  for(const p of candidates()){
+    if(done.has(p.id)) continue;
     const opts=duoOptions(p).filter(o=>!S.swiped[p.id+":"+o.r.id]);
-    opts.slice(0,2).forEach((o,i)=>cards.push(Object.assign({p,rank:i},o)));
+    opts.slice(0,2).forEach((o,i)=>cards.push(Object.assign({p,rank:o.liked?-1:i},o)));
   }
-  // best combos first, but spread people out a little
-  return cards.sort((a,b)=>a.rank-b.rank||b.score-a.score);
+  return cards.sort((a,b)=>a.rank-b.rank||b.score-a.score||(a.p.dist||999)-(b.p.dist||999));
 }
 
 /* ================= SWIPE DECK ================= */
 let deck=[];
+const INVITE="https://github.com/mrsirwithpizza101/PlateMate/releases/latest";
+function emptyHTML(e,h,p,btns){return `<div class="empty"><div class="e">${e}</div><h3>${h}</h3><p>${p}</p><br>${btns||""}</div>`;}
 function renderDeck(){
-  deck=buildDeck();
   const el=$("deck");
+  const hide=t=>{$("deckActions").style.visibility="hidden";$("homeSub").textContent=t;};
   if(!S.pantry.length){
-    el.innerHTML=`<div class="empty"><div class="e">🧺</div><h3>Your pantry is empty</h3><p>Add a few ingredients and we'll find people you can cook with.</p><br><button class="btn" onclick="go('pantry')">Fill my pantry</button></div>`;
-    $("deckActions").style.visibility="hidden"; $("homeSub").textContent="Meals you can make by combining pantries"; return;
+    el.innerHTML=emptyHTML("🧺","Your pantry is empty","Add a few ingredients and we'll find people you can cook with.",`<button class="btn" onclick="go('pantry')">Fill my pantry</button>`);
+    return hide("Meals you can make by combining pantries");
   }
+  if(LIVE&&(!ME_UID||(L.loading&&!L.loaded))){
+    el.innerHTML=`<div class="empty"><div class="spin"></div><h3>Finding cooks near you…</h3><p>Warming up the stove 🔥</p></div>`;
+    return hide("Connecting…");
+  }
+  if(LIVE&&L.error&&!L.people.length){
+    el.innerHTML=emptyHTML("📡","Can't reach PlateMate",esc(L.error),`<button class="btn" onclick="refreshPeople()">Try again</button>`);
+    return hide("Check your internet connection");
+  }
+  deck=buildDeck();
   if(!deck.length){
-    el.innerHTML=`<div class="empty"><div class="e">🍽️</div><h3>No more combos right now</h3><p>Add more ingredients to unlock new meals and new cooks.</p><br><button class="btn" onclick="go('pantry')">Add ingredients</button><br><br><button class="btn ghost" onclick="resetSwipes()">↺ See passed cards again</button></div>`;
-    $("deckActions").style.visibility="hidden"; $("homeSub").textContent="You've seen everyone for now"; return;
+    const near=LIVE&&S.radius==="near";
+    const btns=LIVE
+      ?`<button class="btn" onclick="invite()">📨 Invite friends</button><br><br>`+
+        (near?`<button class="btn ghost" onclick="setRadius('any')">🌎 Search anywhere</button><br><br>`:"")+
+        `<button class="btn ghost" onclick="refreshPeople()">↻ Refresh</button><br><br>`+
+        `<button class="btn ghost" onclick="resetSwipes()">↺ See passed cards again</button>`
+      :`<button class="btn" onclick="go('pantry')">Add ingredients</button><br><br><button class="btn ghost" onclick="resetSwipes()">↺ See passed cards again</button>`;
+    const none=LIVE&&!candidates().length;
+    el.innerHTML=emptyHTML(none?"🥲":"🍽️",none?(near?"No cooks nearby yet":"No cooks yet"):"No more combos right now",
+      none?"PlateMate is brand new — invite friends so you have someone to match with!":"Add more ingredients to unlock new meals and new cooks.",btns);
+    return hide(none?"Be the first cook in your area":"You've seen everyone for now");
   }
   $("deckActions").style.visibility="visible";
-  $("homeSub").textContent=`${deck.length} meal${deck.length>1?"s":""} you could cook with someone nearby`;
+  $("homeSub").textContent=`${deck.length} meal${deck.length>1?"s":""} you could cook with someone ${LIVE&&S.radius==="any"?"(anywhere)":"nearby"}`;
   el.innerHTML="";
   deck.slice(0,3).reverse().forEach((c,idx,arr)=>{
-    const pos=arr.length-1-idx; // 0 = top
+    const pos=arr.length-1-idx;
     const d=document.createElement("div");
     d.className="card"+(pos===1?" behind":pos===2?" behind2":"");
     d.innerHTML=cardHTML(c);
@@ -557,28 +679,30 @@ function renderDeck(){
     if(pos===0) attachDrag(d,c);
   });
 }
+function vibeLabel(v){return v==="date"?"💘 Dating":v==="friends"?"🤝 Friends":"💘🤝 Open to both";}
 function cardHTML(c){
   const p=c.p,r=c.r;
   return `
   <div class="stamp like">YUM!</div><div class="stamp nope">NOPE</div>
+  ${c.liked?`<div class="likesyou">💖 ${esc(p.name)} wants to cook this!</div>`:""}
   <div class="hero" style="background:linear-gradient(150deg,${r.c},${p.col})">
     <div class="big">${r.emoji}</div>
     <div class="meal">${esc(r.name)}</div>
     <div class="tagrow"><span class="pill">⏱ ${r.time} min</span><span class="pill">${r.diff}</span>${c.missing.length?'<span class="pill">🛒 +1 item</span>':'<span class="pill">✅ Ready</span>'}</div>
   </div>
-  <div class="person">${avatarHTML(p)}<div><div class="nm">${esc(p.name)}, ${p.age}</div>
-    <div class="meta">📍 ${p.dist} mi away · ${p.vibe==="date"?"💘 Dating":p.vibe==="friends"?"🤝 Friends":"💘🤝 Open to both"}</div></div></div>
-  <div class="bio">${esc(p.bio)}</div>
+  <div class="person">${avatarHTML(p)}<div><div class="nm">${esc(p.name)}${p.age?", "+esc(p.age):""}</div>
+    <div class="meta">${p.dist!=null?`📍 ${p.dist} mi away · `:""}${vibeLabel(p.vibe)}</div></div></div>
+  ${p.bio?`<div class="bio">${esc(p.bio)}</div>`:""}
   <div class="bring">
-    <div class="row"><span class="lbl">You bring</span>${c.you.map(i=>`<span class="chip you">${emo(i)} ${i}</span>`).join("")}</div>
-    <div class="row"><span class="lbl">${esc(p.name)} brings</span>${c.them.map(i=>`<span class="chip them">${emo(i)} ${i}</span>`).join("")}</div>
-    ${c.missing.length?`<div class="row"><span class="lbl">Grab</span>${c.missing.map(i=>`<span class="chip need">${emo(i)} ${i}</span>`).join("")}</div>`:""}
+    <div class="row"><span class="lbl">You bring</span>${c.you.map(i=>`<span class="chip you">${emo(i)} ${esc(i)}</span>`).join("")}</div>
+    <div class="row"><span class="lbl">${esc(p.name)} brings</span>${c.them.map(i=>`<span class="chip them">${emo(i)} ${esc(i)}</span>`).join("")}</div>
+    ${c.missing.length?`<div class="row"><span class="lbl">Grab</span>${c.missing.map(i=>`<span class="chip need">${emo(i)} ${esc(i)}</span>`).join("")}</div>`:""}
   </div>`;
 }
 function attachDrag(el,c){
   let sx=0,sy=0,dx=0,dy=0,down=false;
   const like=el.querySelector(".like"),nope=el.querySelector(".nope");
-  el.addEventListener("pointerdown",e=>{down=true;sx=e.clientX;sy=e.clientY;el.classList.add("dragging");el.setPointerCapture(e.pointerId);});
+  el.addEventListener("pointerdown",e=>{down=true;sx=e.clientX;sy=e.clientY;dx=dy=0;el.classList.add("dragging");try{el.setPointerCapture(e.pointerId);}catch(_){}});
   el.addEventListener("pointermove",e=>{if(!down)return;dx=e.clientX-sx;dy=e.clientY-sy;
     el.style.transform=`translate(${dx}px,${dy}px) rotate(${dx/14}deg)`;
     like.style.opacity=Math.max(0,Math.min(1,dx/90));nope.style.opacity=Math.max(0,Math.min(1,-dx/90));});
@@ -595,55 +719,75 @@ function fling(el,c,right){
   el.classList.remove("dragging");
   el.style.transition="transform .45s ease-in, opacity .45s";
   el.querySelector(right?".like":".nope").style.opacity=1;
-  el.style.transform=`translate(${right?600:-600}px,${-60}px) rotate(${right?35:-35}deg)`;
+  el.style.transform=`translate(${right?600:-600}px,-60px) rotate(${right?35:-35}deg)`;
   el.style.opacity="0";
   S.swiped[c.p.id+":"+c.r.id]=right?"R":"L";
   save();
+  if(right&&LIVE){
+    Cloud.like(c.p.id,c.r.id).then(mid=>{
+      if(mid) showMatchOnce(mid,c.p,c.r);
+      else toast(`💌 Like sent! If ${c.p.name} picks ${c.r.name} too, you match.`);
+    }).catch(e=>{delete S.swiped[c.p.id+":"+c.r.id];save();toast("Like didn't send: "+short(e));renderDeck();});
+  }
   setTimeout(()=>{flinging=false;
-    if(right&&likesBack(c)){makeMatch(c);}
-    else if(right){toast(`💌 Sent ${c.p.name} a like for ${c.r.name}`);}
+    if(right&&!LIVE){ if(likesBack(c)) makeDemoMatch(c); else toast(`💌 Sent ${c.p.name} a like for ${c.r.name}`); }
     renderDeck();
   },380);
 }
-function likesBack(c){
-  // Demo cooks: stable "random" decision per person+meal so it doesn't change on re-swipe, biased toward yes
-  let h=0;const k=c.p.id+c.r.id+(S.profile?S.profile.name:"");for(const ch of k)h=(h*31+ch.charCodeAt(0))>>>0;
-  return (h%100)<72;
-}
+function likesBack(c){let h=0;const k=c.p.id+c.r.id+(S.profile?S.profile.name:"");for(const ch of k)h=(h*31+ch.charCodeAt(0))>>>0;return (h%100)<72;}
 function topCardEl(){const cs=$("deck").querySelectorAll(".card");return cs[cs.length-1];}
 $("btnYes").onclick=e=>{const el=topCardEl();if(el&&deck[0]){burst(e.clientX,e.clientY,["❤️","😋","✨"]);fling(el,deck[0],true);}};
 $("btnNo").onclick=()=>{const el=topCardEl();if(el&&deck[0])fling(el,deck[0],false);};
 $("btnInfo").onclick=()=>{if(deck[0])openRecipe(deck[0].r.id,deck[0]);};
 function resetSwipes(){for(const k in S.swiped) if(S.swiped[k]==="L") delete S.swiped[k];save();renderDeck();toast("↺ Passed cards are back");}
+function setRadius(r){S.radius=r;save();if(r==="near")ensureLocation().then(()=>{syncMe();refreshPeople();});else refreshPeople();}
+function invite(){
+  const text=`Come cook with me on PlateMate 🍽️ ${INVITE}`;
+  if(navigator.share){navigator.share({title:"PlateMate",text,url:INVITE}).catch(()=>{});return;}
+  const done=()=>toast("📋 Invite link copied — paste it to a friend");
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done,()=>prompt("Copy this invite:",text));
+  else prompt("Copy this invite:",text);
+}
 
-/* ================= MATCH ================= */
-function makeMatch(c){
-  const m={id:"m"+Date.now(),pid:c.p.id,rid:c.r.id,you:c.you,them:c.them,missing:c.missing,msgs:[],t:Date.now(),unread:1};
-  m.msgs.push({from:"them",text:opener(c),t:Date.now()});
-  S.matches.unshift(m);save();updateBadge();
-  const M=me(),p=c.p,r=c.r;
+/* ================= MATCH MODAL ================= */
+function showMatchOnce(mid,p,r){
+  if(L.shown.has(mid)) return; L.shown.add(mid);
+  S.known[mid]=1;save();
+  const M=me();
   $("match").innerHTML=`
     <h1>It's a Match!</h1>
     <div class="pair">${avatarHTML(M,"a1")}<div class="heart">❤️</div>${avatarHTML(p,"a2")}</div>
     <div class="mealname"><span class="e">${r.emoji}</span>You and ${esc(p.name)} are making<br><b>${esc(r.name)}</b></div>
     <button class="btn white" id="mSay">💬 Say hi to ${esc(p.name)}</button>
-    <button class="btn clear" id="mKeep">Keep swiping</button>`;
+    <button class="btn clear" id="mKeep">Keep swiping</button>
+    ${LIVE?`<p class="hint" style="color:#fff;opacity:.9;margin-top:14px">🛟 First time cooking together? Meet somewhere public first.</p>`:""}`;
   $("match").classList.add("show");
   confetti();
-  $("mSay").onclick=()=>{$("match").classList.remove("show");openChat(m.id);};
+  $("mSay").onclick=()=>{$("match").classList.remove("show");openChat(mid);};
   $("mKeep").onclick=()=>$("match").classList.remove("show");
 }
+function makeDemoMatch(c){
+  const m={id:"m"+Date.now(),pid:c.p.id,rid:c.r.id,msgs:[{from:"them",text:opener(c),t:Date.now()}],t:Date.now(),unread:1};
+  S.matches.unshift(m);save();updateBadge();
+  showMatchOnce(m.id,c.p,c.r);
+}
 function opener(c){
-  const lines=[
-    `Heyy! ${c.r.name} sounds perfect 😍 I've got the ${c.them.join(" & ")}!`,
+  const lines=[`Heyy! ${c.r.name} sounds perfect 😍 I've got the ${c.them.join(" & ")}!`,
     `A fellow ${c.r.name} fan?! I'll bring ${c.them[0]}, you bring ${c.you[0]} 🙌`,
-    `Okay ${c.r.emoji} ${c.r.name} date? I'm so in.`,
-    `Finally someone with ${c.you[0]}! Let's cook 👩‍🍳`
-  ];
+    `Okay ${c.r.emoji} ${c.r.name} date? I'm so in.`,`Finally someone with ${c.you[0]}! Let's cook 👩‍🍳`];
   return lines[(c.p.id.length+c.r.id.length)%lines.length];
 }
+function allMatches(){
+  if(!LIVE) return S.matches.map(m=>{const last=m.msgs[m.msgs.length-1];
+    return {id:m.id,person:PBY[m.pid],rid:m.rid,last:last?last.text:"",lastMine:!!last&&last.from==="me",unread:!!m.unread,at:last?last.t:m.t};});
+  const bl=new Set(S.blocked);
+  return L.matches.filter(m=>!m.closed&&!bl.has(m.other)).map(m=>({id:m.id,
+    person:L.users[m.other]||{id:m.other,name:"…",av:"⏳",col:"#eee",pantry:[]},rid:m.rid,last:m.lastText,
+    lastMine:m.lastFrom===ME_UID,unread:!!m.lastFrom&&m.lastFrom!==ME_UID&&m.lastAt>(S.seen[m.id]||0),at:m.lastAt}))
+    .sort((a,b)=>b.at-a.at);
+}
 function updateBadge(){
-  const n=S.matches.reduce((a,m)=>a+(m.unread||0),0);
+  const n=allMatches().filter(m=>m.unread).length;
   const b=$("chatBadge");b.style.display=n?"grid":"none";b.textContent=n;
 }
 
@@ -663,7 +807,7 @@ function confetti(){
 /* ================= SOLO COOK ================= */
 function renderCook(){
   const el=$("cookList");
-  if(!S.pantry.length){el.innerHTML=`<div class="empty"><div class="e">🥕</div><h3>Nothing in the pantry yet</h3><p>Add ingredients to see what you can make.</p><br><button class="btn" onclick="go('pantry')">Add ingredients</button></div>`;return;}
+  if(!S.pantry.length){el.innerHTML=emptyHTML("🥕","Nothing in the pantry yet","Add ingredients to see what you can make.",`<button class="btn" onclick="go('pantry')">Add ingredients</button>`);return;}
   const all=soloRecipes();
   const ready=all.filter(x=>!x.missing.length), almost=all.filter(x=>x.missing.length&&x.missing.length<=2);
   const card=(x,i)=>`<button class="rcard" style="animation-delay:${i*40}ms" onclick="openRecipe('${x.r.id}')">
@@ -680,7 +824,7 @@ function renderCook(){
 function openRecipe(rid,combo){
   const r=RBY[rid];if(!r)return;
   const have=hasSet(S.pantry);
-  const theirs=combo?new Set(combo.p.pantry):new Set();
+  const theirs=combo&&combo.p?new Set(combo.p.pantry||[]):new Set();
   const rows=r.ing.map(i=>{
     let tag,cls;
     if(have.has(i)){tag="You";cls="you";}else if(theirs.has(i)){tag=combo.p.name;cls="them";}else{tag="Need";cls="need";}
@@ -703,28 +847,27 @@ document.querySelectorAll(".overlay").forEach(o=>o.addEventListener("click",e=>{
 /* ================= PANTRY ================= */
 let curCat="all";
 function addIng(raw,ev){
-  const parts=String(raw).split(/,|\band\b|\n/).map(norm).filter(Boolean);
+  const parts=(Array.isArray(raw)?raw:String(raw).split(/,|\band\b|\n/)).map(norm).filter(Boolean);
   let added=0;
   for(const n of parts){
     if(STAPLES.includes(n)){toast(`🧂 ${cap(n)} is always assumed — no need to add it`);continue;}
-    if(!S.pantry.includes(n)){S.pantry.push(n);added++;}
+    if(!S.pantry.includes(n)&&S.pantry.length<80){S.pantry.push(n);added++;}
   }
   if(added){
-    renderPantry();renderQuick();
+    save();renderPantry();renderQuick();
     if(ev&&ev.clientX) burst(ev.clientX,ev.clientY,["✨","⭐","💫"]);
-    const unknown=parts.filter(n=>!ING[n]&&!STAPLES.includes(n));
-    if(unknown.length) toast(`Added! (“${unknown[0]}” isn't in any recipes yet)`);
   }
   return added;
 }
 function removeIng(i,btn){
   const chip=btn.closest(".ing");chip.classList.add("out");
-  setTimeout(()=>{S.pantry=S.pantry.filter(x=>x!==i);renderPantry();renderQuick();},230);
+  setTimeout(()=>{S.pantry=S.pantry.filter(x=>x!==i);save();renderPantry();renderQuick();},230);
 }
 function renderPantry(){
   const cols=["#FF5A7A","#FF9F43","#2ED47A","#4D7CFE","#9B5DE5","#1FC8C8","#F7B32B"];
-  $("pantry").innerHTML=S.pantry.length?S.pantry.map((i,k)=>`<span class="ing" style="background:${cols[k%cols.length]}">${emo(i)} ${esc(i)}<button onclick="removeIng('${esc(i)}',this)" aria-label="Remove">✕</button></span>`).join("")
+  $("pantry").innerHTML=S.pantry.length?S.pantry.map((i,k)=>`<span class="ing" style="background:${cols[k%cols.length]}">${emo(i)} ${esc(i)}<button data-i="${esc(i)}" aria-label="Remove">✕</button></span>`).join("")
     :`<p class="hint">Nothing yet — type above, snap a photo, or tap quick-add below 👇</p>`;
+  $("pantry").querySelectorAll(".ing button").forEach(b=>b.onclick=()=>removeIng(b.dataset.i,b));
   $("pantryCount").textContent=S.pantry.length?`${S.pantry.length} ingredient${S.pantry.length>1?"s":""} · tap ✕ to remove`:"";
 }
 function renderCats(){
@@ -736,127 +879,215 @@ function renderQuick(){
   $("quick").innerHTML=list.map(k=>`<button class="${S.pantry.includes(k)?"have":""}" data-i="${esc(k)}"><span class="em">${ING[k][0]}</span>${esc(k)}</button>`).join("");
   $("quick").querySelectorAll("button").forEach(b=>b.onclick=e=>{
     const i=b.dataset.i;
-    if(S.pantry.includes(i)){S.pantry=S.pantry.filter(x=>x!==i);renderPantry();renderQuick();}
+    if(S.pantry.includes(i)){S.pantry=S.pantry.filter(x=>x!==i);save();renderPantry();renderQuick();}
     else addIng(i,e);
   });
 }
 function renderSuggest(){
-  const q=norm($("ingInput").value);
+  const raw=$("ingInput").value.toLowerCase().trim(),q=norm(raw);
   if(!q){$("suggest").innerHTML="";return;}
-  const raw=$("ingInput").value.toLowerCase().trim();
   const hits=Object.keys(ING).filter(k=>(k.includes(raw)||k.startsWith(q))&&!S.pantry.includes(k)).slice(0,6);
   $("suggest").innerHTML=hits.map(h=>`<button data-i="${esc(h)}">${emo(h)} ${esc(h)}</button>`).join("");
   $("suggest").querySelectorAll("button").forEach(b=>b.onclick=e=>{addIng(b.dataset.i,e);$("ingInput").value="";renderSuggest();$("ingInput").focus();});
 }
 $("ingInput").addEventListener("input",renderSuggest);
 $("ingInput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("ingAdd").click();}});
-$("ingAdd").onclick=e=>{const v=$("ingInput").value;if(!v.trim())return;addIng(v,e);$("ingInput").value="";renderSuggest();};
-$("saveBtn").onclick=e=>{
+$("ingAdd").onclick=e=>{const v=$("ingInput").value;if(!v.trim())return;
+  const n=addIng(v,e);const u=norm(v);if(n&&!ING[u]&&!STAPLES.includes(u))toast(`Added! (“${u}” isn't in any recipes yet)`);
+  $("ingInput").value="";renderSuggest();};
+$("saveBtn").onclick=async e=>{
   save();burst(e.clientX,e.clientY,["🍳","🥗","🍝","🌮"]);
-  const n=buildDeck().length, s=soloRecipes().filter(x=>!x.missing.length).length;
-  toast(`Saved! ${s} solo meal${s===1?"":"s"} · ${n} cook-together match${n===1?"":"es"} 🎉`);
-  setTimeout(()=>go("home"),700);
+  const s=soloRecipes().filter(x=>!x.missing.length).length;
+  go("home");
+  if(LIVE){
+    await ensureLocation();await syncMe();await refreshPeople();
+    toast(`Saved! ${s} solo meal${s===1?"":"s"} · ${buildDeck().length} cook-together match${buildDeck().length===1?"":"es"} 🎉`);
+  } else {
+    const n=buildDeck().length;
+    toast(`Saved! ${s} solo meal${s===1?"":"s"} · ${n} cook-together match${n===1?"":"es"} 🎉`);
+  }
 };
 
-/* ================= PHOTOS ================= */
-let photoTarget="pantry";
+/* ================= PHOTOS + AI FOOD DETECTION ================= */
+let photoTarget="pantry",lastPhoto=null;
 function pickPhoto(target){photoTarget=target;$("fileIn").value="";$("fileIn").click();}
 $("snapBtn").onclick=()=>pickPhoto("pantry");
 $("fileIn").addEventListener("change",e=>{
   const f=e.target.files&&e.target.files[0];if(!f)return;
-  const rd=new FileReader();rd.onload=()=>shrinkImage(rd.result,700,handlePhoto);rd.readAsDataURL(f);
+  const rd=new FileReader();rd.onload=()=>gotPhoto(rd.result);rd.readAsDataURL(f);
 });
-window.onNativePhoto=function(dataUrl){shrinkImage(dataUrl,700,handlePhoto);};
+window.onNativePhoto=function(dataUrl){gotPhoto(dataUrl);};
+function gotPhoto(src){shrinkImage(src,photoTarget==="profile"?256:1024,handlePhoto);}
 function shrinkImage(src,max,cb){
   const img=new Image();img.onload=()=>{const sc=Math.min(1,max/Math.max(img.width,img.height));
     const c=document.createElement("canvas");c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);
-    c.getContext("2d").drawImage(img,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",.75));};
+    c.getContext("2d").drawImage(img,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",.8));};
   img.onerror=()=>toast("Couldn't read that photo");img.src=src;
 }
 function handlePhoto(url){
   if(photoTarget==="profile"){
     if(!S.profile)S.profile={};
-    S.profile.photo=url;save();refreshMe();openProfile();return;
+    S.profile.photo=url;save();refreshMe();openProfile();syncMe();return;
   }
-  S.lastPhoto=url;save();openPhotoTagger();
+  lastPhoto=url;openPhotoTagger();
 }
 function openPhotoTagger(){
-  const sel=new Set();
+  const sel=new Set();let extras=[];let state=LIVE?"scanning":"manual";let err="";let foundCount=0;
+  const statusHTML=()=>({
+    scanning:`<div class="aistat">🤖 <b>Spotting your food…</b></div>`,
+    done:foundCount?`<div class="aistat ok">✨ Found <b>${foundCount}</b> item${foundCount>1?"s":""}! Tap to fix anything I missed or got wrong.</div>`
+               :`<div class="aistat">🤔 Couldn't spot any food — try a closer, brighter photo, or tap items below.</div>`,
+    error:`<div class="aistat bad">😕 Auto-detect failed (${esc(err)}). Tap what you see instead.</div>`,
+    manual:`<div class="aistat">👆 Tap everything you can see.<br><small>Auto-detect turns on once the app is connected to Firebase.</small></div>`
+  })[state];
   const draw=()=>{
+    const keys=Object.keys(ING).sort((a,b)=>(sel.has(b)?1:0)-(sel.has(a)?1:0));
+    const st=$("photoSheet").scrollTop;
     $("photoSheet").innerHTML=`
       <div class="grab"></div>
       <div class="shead"><h2>What's in the photo? 👀</h2><button class="xbtn" onclick="closeOv('photoOv')">✕</button></div>
       <div style="padding:10px 16px">
-        <img src="${S.lastPhoto}" style="width:100%;max-height:230px;object-fit:cover;border-radius:18px;box-shadow:var(--shadow)">
-        <p class="hint" style="margin:10px 2px">Tap everything you can see, then add them all at once.</p>
-        <div class="quick" id="tagGrid">${Object.keys(ING).map(k=>`<button class="${sel.has(k)||S.pantry.includes(k)?"have":""}" data-i="${esc(k)}"><span class="em">${ING[k][0]}</span>${esc(k)}</button>`).join("")}</div>
-        <button class="btn green block" id="tagDone" style="margin-top:14px">Add ${sel.size||""} to pantry</button>
+        <div class="scanwrap ${state==="scanning"?"on":""}"><img src="${lastPhoto}"><div class="scanline"></div>
+          ${state==="scanning"?'<div class="sparkles"><span>✨</span><span>🔍</span><span>✨</span></div>':""}</div>
+        ${statusHTML()}
+        ${extras.length?`<div class="sec" style="margin-top:6px">➕ Also spotted</div><div class="suggest">${extras.map(x=>`<button class="xtra ${sel.has(x)?"on":""}" data-x="${esc(x)}">${sel.has(x)?"✅":"➕"} ${esc(x)}</button>`).join("")}</div>`:""}
+        <div class="quick" id="tagGrid" style="margin-top:12px">${keys.map(k=>`<button class="${sel.has(k)||S.pantry.includes(k)?"have":""} ${state==="done"&&sel.has(k)?"found":""}" data-i="${esc(k)}"><span class="em">${ING[k][0]}</span>${esc(k)}</button>`).join("")}</div>
+        <button class="btn green block" id="tagDone" style="margin-top:14px" ${state==="scanning"?"disabled":""}>${state==="scanning"?"Scanning…":`Add ${sel.size||""} to pantry`}</button>
       </div>`;
-    $("tagGrid").querySelectorAll("button").forEach(b=>b.onclick=()=>{const i=b.dataset.i;if(S.pantry.includes(i))return;
-      sel.has(i)?sel.delete(i):sel.add(i);const st=$("photoSheet").scrollTop;draw();$("photoSheet").scrollTop=st;});
-    $("tagDone").onclick=e=>{const n=addIng([...sel].join(","),e);closeOv("photoOv");if(n)toast(`📸 Added ${n} from your photo`);};
+    $("photoSheet").scrollTop=st;
+    $("tagGrid").querySelectorAll("button").forEach(b=>b.onclick=()=>{const i=b.dataset.i;if(S.pantry.includes(i))return;sel.has(i)?sel.delete(i):sel.add(i);draw();});
+    $("photoSheet").querySelectorAll(".xtra").forEach(b=>b.onclick=()=>{const x=b.dataset.x;sel.has(x)?sel.delete(x):sel.add(x);draw();});
+    $("tagDone").onclick=e=>{if(state==="scanning")return;const n=addIng([...sel],e);closeOv("photoOv");
+      if(n){toast(`📸 Added ${n} from your photo`);if(LIVE)syncMe();}};
   };
-  draw();$("photoOv").classList.add("show");
+  $("photoSheet").scrollTop=0;draw();$("photoOv").classList.add("show");
+  if(LIVE){
+    Cloud.detectFood(lastPhoto,Object.keys(ING)).then(items=>{
+      const seen=new Set();
+      for(const raw of items){const n=norm(raw);if(!n||seen.has(n)||STAPLES.includes(n))continue;seen.add(n);
+        if(S.pantry.includes(n))continue;
+        if(ING[n])sel.add(n);else{extras.push(n);sel.add(n);}}
+      foundCount=seen.size;state="done";draw();
+      if(foundCount)burst(innerWidth/2,innerHeight/3,["🥕","🧀","🍅","🥚"]);
+    }).catch(e=>{console.error(e);err=short(e);state="error";draw();});
+  }
 }
 
 /* ================= CHATS ================= */
 function renderChats(){
-  if(!S.matches.length){
+  const list=allMatches();
+  if(!list.length){
     $("mlist").innerHTML="";
-    $("clist").innerHTML=`<div class="empty"><div class="e">💞</div><h3>No matches yet</h3><p>Swipe right on meals you'd love to cook together.</p><br><button class="btn" onclick="go('home')">Start swiping</button></div>`;
+    $("clist").innerHTML=emptyHTML("💞","No matches yet","Swipe right on meals you'd love to cook together.",`<button class="btn" onclick="go('home')">Start swiping</button>`);
     return;
   }
-  $("mlist").innerHTML=S.matches.map(m=>{const p=PBY[m.pid];return `<button class="mbub" onclick="openChat('${m.id}')">${avatarHTML(p)}${esc(p.name)}</button>`;}).join("");
-  $("clist").innerHTML=S.matches.map(m=>{const p=PBY[m.pid],r=RBY[m.rid],last=m.msgs[m.msgs.length-1];
-    return `<button class="citem" onclick="openChat('${m.id}')">${avatarHTML(p)}<div class="t"><b>${esc(p.name)} ${m.unread?'<span class="chip you" style="font-size:10px;padding:2px 7px">NEW</span>':""}</b>
-      <span>${last?(last.from==="me"?"You: ":"")+esc(last.text):"Say hi!"}</span></div><span class="meal-mini">${r.emoji}</span></button>`;}).join("");
+  $("mlist").innerHTML=list.map(m=>`<button class="mbub" data-m="${m.id}">${avatarHTML(m.person)}${esc(m.person.name)}</button>`).join("");
+  $("clist").innerHTML=list.map(m=>{const r=RBY[m.rid]||{emoji:"🍽️"};
+    return `<button class="citem" data-m="${m.id}">${avatarHTML(m.person)}<div class="t"><b>${esc(m.person.name)} ${m.unread?'<span class="chip you" style="font-size:10px;padding:2px 7px">NEW</span>':""}</b>
+      <span>${m.last?(m.lastMine?"You: ":"")+esc(m.last):"Say hi! 👋"}</span></div><span class="meal-mini">${r.emoji}</span></button>`;}).join("");
+  document.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>openChat(b.dataset.m));
 }
 let curChat=null;
 function openChat(mid){
-  const m=S.matches.find(x=>x.id===mid);if(!m)return;
-  curChat=m;m.unread=0;save();updateBadge();
-  const p=PBY[m.pid],r=RBY[m.rid];
-  $("chatAv").outerHTML=avatarHTML(p).replace('class="avatar ','id="chatAv" class="avatar ');
+  const m=allMatches().find(x=>x.id===mid);if(!m)return;
+  curChat=m;
+  const p=m.person,r=RBY[m.rid];
+  const old=$("chatAv");const tmp=document.createElement("div");tmp.innerHTML=avatarHTML(p);const nv=tmp.firstElementChild;nv.id="chatAv";old.replaceWith(nv);
   $("chatName").textContent=p.name;
-  $("chatMeta").textContent=`📍 ${p.dist} mi · matched over ${r.name}`;
-  $("chatMeal").innerHTML=`<span class="e">${r.emoji}</span><div style="flex:1">${esc(r.name)}<div class="hint" style="margin:0">You: ${m.you.join(", ")} · ${esc(p.name)}: ${m.them.join(", ")}${m.missing.length?" · grab: "+m.missing.join(", "):""}</div></div><button class="btn" style="padding:8px 12px;font-size:13px" onclick="openRecipe('${r.id}',{p:PBY['${p.id}']})">Recipe</button>`;
-  const qrs=["When are you free? 📅","Your kitchen or mine? 🏠",`I'll bring the ${m.you[0]}!`,"Want to add dessert? 🍫"];
+  $("chatMeta").textContent=`${p.dist!=null?"📍 "+p.dist+" mi · ":""}matched over ${r.name}`;
+  const s=split(r,S.pantry,p.pantry);
+  $("chatMeal").innerHTML=`<span class="e">${r.emoji}</span><div style="flex:1">${esc(r.name)}<div class="hint" style="margin:0">You: ${esc(s.you.join(", ")||"—")} · ${esc(p.name)}: ${esc(s.them.join(", ")||"—")}${s.missing.length?" · grab: "+esc(s.missing.join(", ")):""}</div></div><button class="btn" style="padding:8px 12px;font-size:13px" id="chatRecipe">Recipe</button>`;
+  $("chatRecipe").onclick=()=>openRecipe(r.id,{p});
+  const qrs=["When are you free? 📅","Your kitchen or mine? 🏠",`I'll bring the ${s.you[0]||"snacks"}!`,"Want to add dessert? 🍫"];
   $("qr").innerHTML=qrs.map(q=>`<button>${esc(q)}</button>`).join("");
   $("qr").querySelectorAll("button").forEach(b=>b.onclick=()=>sendMsg(b.textContent));
-  drawMsgs();
+  if(LIVE){
+    L.msgs=[];drawMsgs();
+    if(L.chatUnsub)L.chatUnsub();
+    L.chatUnsub=Cloud.watchMessages(mid,msgs=>{L.msgs=msgs;if(curChat&&curChat.id===mid){drawMsgs();S.seen[mid]=Date.now();save();updateBadge();}});
+    S.seen[mid]=Date.now();save();
+  } else {
+    const dm=S.matches.find(x=>x.id===mid);if(dm)dm.unread=0;save();drawMsgs();
+  }
+  updateBadge();
   $("chat").classList.add("show");
 }
+function chatMsgs(){
+  if(!curChat) return [];
+  if(LIVE) return L.msgs.map(x=>({mine:x.from===ME_UID,text:x.text}));
+  const dm=S.matches.find(x=>x.id===curChat.id);return dm?dm.msgs.map(x=>({mine:x.from==="me",text:x.text})):[];
+}
 function drawMsgs(){
-  $("msgs").innerHTML=curChat.msgs.map(x=>`<div class="msg ${x.from}">${esc(x.text)}</div>`).join("");
+  const list=chatMsgs();
+  $("msgs").innerHTML=list.length?list.map(x=>`<div class="msg ${x.mine?"me":"them"}">${esc(x.text)}</div>`).join("")
+    :`<div class="empty" style="padding:30px 10px"><div class="e" style="font-size:50px">👋</div><p>Say hi to ${esc(curChat.person.name)} and plan your ${esc(RBY[curChat.rid].name)}!</p></div>`;
   $("msgs").scrollTop=$("msgs").scrollHeight;
 }
 function sendMsg(text){
-  text=String(text||"").trim();if(!text||!curChat)return;
-  curChat.msgs.push({from:"me",text,t:Date.now()});save();drawMsgs();
-  const m=curChat;
+  text=String(text||"").trim().slice(0,1000);if(!text||!curChat)return;
+  if(LIVE){Cloud.send(curChat.id,text).catch(e=>toast("Message not sent: "+short(e)));return;}
+  const m=S.matches.find(x=>x.id===curChat.id);if(!m)return;
+  m.msgs.push({from:"me",text,t:Date.now()});save();drawMsgs();
   const ty=document.createElement("div");ty.className="typing";ty.innerHTML="<i></i><i></i><i></i>";
-  setTimeout(()=>{if(curChat===m){$("msgs").appendChild(ty);$("msgs").scrollTop=$("msgs").scrollHeight;}},500);
+  setTimeout(()=>{if(curChat&&curChat.id===m.id){$("msgs").appendChild(ty);$("msgs").scrollTop=$("msgs").scrollHeight;}},500);
   setTimeout(()=>{ty.remove();m.msgs.push({from:"them",text:reply(m,text),t:Date.now()});
-    if(curChat===m)drawMsgs();else m.unread=(m.unread||0)+1;save();updateBadge();},1700+Math.random()*900);
+    if(curChat&&curChat.id===m.id)drawMsgs();else m.unread=(m.unread||0)+1;save();updateBadge();},1700+Math.random()*900);
 }
 function reply(m,text){
-  const p=PBY[m.pid],r=RBY[m.rid],t=text.toLowerCase();
-  if(/free|when|time|date|tonight|weekend/.test(t)) return ["Saturday evening works for me! 🌅","How about tomorrow around 6? 🕕","This weekend! I'll clear my schedule 😄"][m.msgs.length%3];
-  if(/kitchen|place|mine|yours|where/.test(t)) return ["My kitchen has the better pans 😏 but I'm easy!","Let's do yours — I'll bring my apron 👩‍🍳","Maybe a picnic-style cook at the park? 🌳"][m.msgs.length%3];
+  const r=RBY[m.rid],t=text.toLowerCase(),k=m.msgs.length;
+  if(/free|when|time|date|tonight|weekend/.test(t)) return ["Saturday evening works for me! 🌅","How about tomorrow around 6? 🕕","This weekend! I'll clear my schedule 😄"][k%3];
+  if(/kitchen|place|mine|yours|where/.test(t)) return ["My kitchen has the better pans 😏 but I'm easy!","Let's do yours — I'll bring my apron 👩‍🍳","Maybe a picnic-style cook at the park? 🌳"][k%3];
   if(/dessert|sweet|chocolate/.test(t)) return "Dessert is ALWAYS a yes 🍫🍓";
-  if(/bring/.test(t)) return `Perfect, and I've got the ${m.them.join(" & ")} covered ✅`;
-  if(/hi|hey|hello|yo/.test(t)) return `Hey hey! 👋 So excited for ${r.name} ${r.emoji}`;
-  return [`Haha love that 😂`,`Honestly can't wait for this ${r.emoji}`,`You seem fun — ${r.name} is gonna slap 🔥`,`Deal! 🤝`][m.msgs.length%4];
+  if(/bring/.test(t)) return "Perfect, I've got my part covered ✅";
+  if(/\b(hi|hey|hello|yo)\b/.test(t)) return `Hey hey! 👋 So excited for ${r.name} ${r.emoji}`;
+  return ["Haha love that 😂",`Honestly can't wait for this ${r.emoji}`,`${r.name} is gonna slap 🔥`,"Deal! 🤝"][k%4];
 }
 $("sendBtn").onclick=()=>{sendMsg($("msgInput").value);$("msgInput").value="";};
 $("msgInput").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("sendBtn").click();}});
 $("chatBack").onclick=closeChat;
-function closeChat(){$("chat").classList.remove("show");curChat=null;renderChats();}
+function closeChat(){$("chat").classList.remove("show");if(L.chatUnsub){L.chatUnsub();L.chatUnsub=null;}curChat=null;renderChats();updateBadge();}
+$("chatMenu").onclick=()=>{
+  if(!curChat)return;const p=curChat.person;
+  $("menuSheet").innerHTML=`<div class="grab"></div>
+    <div class="shead"><h2>${esc(p.name)}</h2><button class="xbtn" onclick="closeOv('menuOv')">✕</button></div>
+    <div style="padding:10px 16px" class="menu">
+      <button id="mmSafety">🛟 Safety tips</button>
+      <button id="mmUnmatch">💔 Unmatch</button>
+      <button id="mmReport" class="danger">🚩 Block & report</button>
+    </div>`;
+  $("menuOv").classList.add("show");
+  $("mmSafety").onclick=()=>{closeOv("menuOv");showSafety();};
+  $("mmUnmatch").onclick=()=>{if(!confirm(`Unmatch with ${p.name}? This closes the chat for both of you.`))return;closeOv("menuOv");endMatch(false);};
+  $("mmReport").onclick=()=>{const reason=prompt(`Why are you reporting ${p.name}? (optional)`,"");if(reason===null)return;closeOv("menuOv");endMatch(true,reason);};
+};
+async function endMatch(block,reason){
+  const m=curChat;if(!m)return;
+  if(block&&!S.blocked.includes(m.person.id))S.blocked.push(m.person.id);
+  if(LIVE){
+    try{await Cloud.closeMatch(m.id);if(block){await Cloud.report(m.person.id,reason||"",m.id);await syncMe();}}
+    catch(e){toast("Something went wrong: "+short(e));}
+  } else S.matches=S.matches.filter(x=>x.id!==m.id);
+  save();closeChat();toast(block?"🚩 Blocked and reported. Thank you.":"💔 Unmatched");
+  if(curView==="home")renderDeck();
+}
+function showSafety(){
+  $("menuSheet").innerHTML=`<div class="grab"></div>
+    <div class="shead"><h2>🛟 Cook safe</h2><button class="xbtn" onclick="closeOv('menuOv')">✕</button></div>
+    <ul class="tips">
+      <li>☕ Meet somewhere public first, like a café or park picnic, before cooking at anyone's home.</li>
+      <li>📱 Tell a friend where you're going and who you're meeting.</li>
+      <li>🚗 Get yourself there and back on your own.</li>
+      <li>💬 Keep chatting in PlateMate until you feel comfortable sharing your number.</li>
+      <li>🥜 Mention any food allergies before you cook together.</li>
+      <li>🚩 If anyone makes you uncomfortable, use Block & report.</li>
+    </ul>`;
+  $("menuOv").classList.add("show");
+}
 
 /* ================= PROFILE ================= */
 function refreshMe(){
   const p=S.profile;const b=$("meBtn");
-  b.innerHTML=p&&p.photo?`<img src="${p.photo}" alt="">`:(p&&p.av)||"🙂";
+  b.innerHTML=p&&p.photo?`<img src="${esc(p.photo)}" alt="">`:esc((p&&p.av)||"🙂");
 }
 function openProfile(){
   const p=S.profile||{name:"",age:"",bio:"",av:"😋",vibe:"both"};
@@ -866,32 +1097,46 @@ function openProfile(){
     <div style="padding:6px 18px">
       <div style="display:flex;justify-content:center;margin:6px 0 12px">
         <div style="position:relative"><div class="bigav">${avatarHTML(Object.assign({col:"#FFE6EC"},p))}</div>
-        <button onclick="pickPhoto('profile')" style="position:absolute;right:-4px;bottom:-4px;width:36px;height:36px;border-radius:50%;background:var(--pink);color:#fff;font-size:16px;box-shadow:var(--shadow)">📷</button></div>
+        <button id="pPhoto" style="position:absolute;right:-4px;bottom:-4px;width:36px;height:36px;border-radius:50%;background:var(--pink);color:#fff;font-size:16px;box-shadow:var(--shadow)">📷</button></div>
       </div>
       <label class="l">Or pick an emoji</label>
       <div class="avpick" id="avpick">${AVATARS.map(a=>`<button class="${a===p.av&&!p.photo?"on":""}">${a}</button>`).join("")}</div>
-      <label class="l">Name</label><input class="field" id="pName" value="${esc(p.name||"")}" placeholder="Your first name">
+      <label class="l">Name</label><input class="field" id="pName" maxlength="40" value="${esc(p.name||"")}" placeholder="Your first name">
       <label class="l">Age</label><input class="field" id="pAge" type="number" min="18" max="99" value="${esc(p.age||"")}" placeholder="18+">
-      <label class="l">Bio</label><textarea class="field" id="pBio" rows="2" placeholder="Favorite thing to cook?">${esc(p.bio||"")}</textarea>
+      <label class="l">Bio</label><textarea class="field" id="pBio" rows="2" maxlength="300" placeholder="Favorite thing to cook?">${esc(p.bio||"")}</textarea>
       <label class="l">Looking for</label>
       <div class="seg" id="pVibe">${[["date","💘 Dates"],["friends","🤝 Friends"],["both","✨ Both"]].map(([k,l])=>`<button data-v="${k}" class="${(p.vibe||"both")===k?"on":""}">${l}</button>`).join("")}</div>
+      ${LIVE?`<label class="l">Find cooks</label>
+      <div class="seg" id="pRadius">${[["near","📍 Near me (~40 mi)"],["any","🌎 Anywhere"]].map(([k,l])=>`<button data-v="${k}" class="${S.radius===k?"on":""}">${l}</button>`).join("")}</div>`:""}
       <button class="btn block" id="pSave" style="margin-top:18px">Save profile</button>
-      <p class="hint" style="margin-top:16px;text-align:center">Nearby cooks in this version are demo profiles.<br>
-        <button style="text-decoration:underline;color:var(--muted);font-size:12px" id="pReset">Reset all app data</button></p>
+      <div class="modepill ${LIVE?"live":""}">${LIVE?(ME_UID?"🟢 Live — matching with real people":"🟡 Connecting…"):"🧪 Demo mode — cooks are sample profiles"}</div>
+      <p class="hint" style="margin-top:10px;text-align:center">
+        <button style="text-decoration:underline;color:var(--muted);font-size:12px" id="pSafety">Safety tips</button> ·
+        <button style="text-decoration:underline;color:var(--muted);font-size:12px" id="pReset">${LIVE?"Delete my account":"Reset app data"}</button></p>
     </div>`;
-  let av=p.av||"😋",vibe=p.vibe||"both";
+  let av=p.av||"😋",vibe=p.vibe||"both",radius=S.radius;
+  $("pPhoto").onclick=()=>pickPhoto("profile");
   $("avpick").querySelectorAll("button").forEach(b=>b.onclick=()=>{av=b.textContent;
     $("avpick").querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");
     if(S.profile){delete S.profile.photo;}});
   $("pVibe").querySelectorAll("button").forEach(b=>b.onclick=()=>{vibe=b.dataset.v;$("pVibe").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));});
-  $("pSave").onclick=e=>{
+  if($("pRadius"))$("pRadius").querySelectorAll("button").forEach(b=>b.onclick=()=>{radius=b.dataset.v;$("pRadius").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));});
+  $("pSave").onclick=async e=>{
     const name=$("pName").value.trim(),age=parseInt($("pAge").value,10);
     if(!name){toast("Add your name 🙂");return;}
     if(!age||age<18){toast("PlateMate is for ages 18+");return;}
+    if(age>120){toast("Double-check your age 🙂");return;}
     S.profile=Object.assign(S.profile||{},{name,age,bio:$("pBio").value.trim(),av,vibe});
+    const radiusChanged=radius!==S.radius;S.radius=radius;
     save();refreshMe();closeOv("profileOv");burst(e.clientX,e.clientY,["💖","✨"]);toast("Profile saved 💖");
+    if(LIVE){await ensureLocation();await syncMe();if(radiusChanged||!L.loaded)refreshPeople();}
   };
-  $("pReset").onclick=()=>{if(confirm("Delete your profile, pantry and matches?")){localStorage.removeItem(KEY);S=fresh();location.reload();}};
+  $("pSafety").onclick=()=>{closeOv("profileOv");showSafety();};
+  $("pReset").onclick=async()=>{
+    if(!confirm(LIVE?"Delete your PlateMate account, pantry and matches? This can't be undone.":"Delete your profile, pantry and matches?"))return;
+    if(LIVE){try{await Cloud.deleteMe();}catch(e){toast("Couldn't delete: "+short(e));return;}}
+    localStorage.removeItem(KEY);location.reload();
+  };
   $("profileOv").classList.add("show");
 }
 $("meBtn").onclick=openProfile;
@@ -908,8 +1153,9 @@ function go(v){
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>go(t.dataset.v));
 window.appBack=function(){
   if($("match").classList.contains("show")){$("match").classList.remove("show");return true;}
+  for(const id of ["menuOv","photoOv","recipeOv"]) if($(id).classList.contains("show")){closeOv(id);return true;}
   if($("chat").classList.contains("show")){closeChat();return true;}
-  for(const id of ["photoOv","recipeOv","profileOv"]) if($(id).classList.contains("show")){closeOv(id);return true;}
+  if($("profileOv").classList.contains("show")){closeOv("profileOv");return true;}
   if(curView!=="home"){go("home");return true;}
   return false;
 };
@@ -922,18 +1168,57 @@ function showOnboarding(){
     <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;width:100%">
       <div class="bigplate">🍽️</div>
       <h1>PlateMate</h1>
-      <p>Add what's in your kitchen. Swipe on meals. Match with someone who has the rest — and cook together. 💞</p>
+      <p>Snap what's in your kitchen. Swipe on meals. Match with someone who has the rest — and cook together. 💞</p>
       <button class="btn" id="onbGo">Let's get cooking →</button>
+      <p style="font-size:12px;margin-top:14px;opacity:.85">18+ only</p>
     </div>`;
   o.classList.add("show");
   $("onbGo").onclick=()=>{o.classList.remove("show");openProfile();
-    const once=()=>{ if(!$("profileOv").classList.contains("show")){clearInterval(iv);if(S.profile&&S.profile.name){go("pantry");toast("Now add a few ingredients 🧺");}}};
-    const iv=setInterval(once,400);};
+    const iv=setInterval(()=>{if(!$("profileOv").classList.contains("show")){clearInterval(iv);
+      if(S.profile&&S.profile.name){go("pantry");toast("Now snap or add a few ingredients 🧺");}}},400);};
+}
+
+/* ================= LIVE BOOT ================= */
+async function startLive(){
+  try{ME_UID=await Cloud.ready;}
+  catch(e){L.error=short(e);L.loaded=true;if(curView==="home")renderDeck();toast("Can't connect: "+short(e));return;}
+  if(S.profile&&S.profile.name){await syncMe();}
+  Cloud.watchIncomingLikes(likes=>{
+    L.incoming=new Set(likes.map(l=>l.from+":"+l.rid));
+    const have=new Set(L.matches.map(m=>m.id));
+    for(const l of likes){
+      if(S.swiped[l.from+":"+l.rid]!=="R")continue;
+      const id=[ME_UID,l.from].sort().join("_")+"_"+l.rid;
+      if(!have.has(id))Cloud.ensureMatch(l.from,l.rid).catch(()=>{});
+    }
+    if(curView==="home"&&!flinging&&!$("deck").querySelector(".dragging"))renderDeck();
+  });
+  Cloud.watchMatches(async list=>{
+    await Promise.all(list.map(m=>loadUser(m.other)));
+    const first=L.firstMatchSnap;L.firstMatchSnap=false;
+    let fresh=0;
+    for(const m of list){
+      if(S.known[m.id]||m.closed)continue;
+      S.known[m.id]=1;
+      if(first)fresh++;
+      else{const p=L.users[m.other],r=RBY[m.rid];if(p&&r)showMatchOnce(m.id,p,r);}
+    }
+    save();
+    L.matches=list;
+    if(fresh)toast(`💞 You have ${fresh} new match${fresh>1?"es":""}!`);
+    if(curChat&&LIVE){const cm=list.find(x=>x.id===curChat.id);if(cm&&cm.closed){closeChat();toast("This match was closed");}}
+    updateBadge();
+    if(curView==="chats"&&!curChat)renderChats();
+    if(curView==="home"&&!flinging)renderDeck();
+  });
+  await ensureLocation();
+  await refreshPeople();
 }
 
 /* ================= BOOT ================= */
-refreshMe();updateBadge();go("home");
+refreshMe();go("home");updateBadge();
 if(!S.profile||!S.profile.name) showOnboarding();
+if(LIVE) startLive();
 </script>
 </body>
 </html>

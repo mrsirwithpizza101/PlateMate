@@ -17,15 +17,36 @@ Every push to `main` builds the app automatically with GitHub Actions:
 
 On your phone, open the APK and allow "Install unknown apps" when Android asks.
 
+## Turning on real matching + AI food detection (Firebase, free)
+Out of the box the app runs in **demo mode**. To go live:
+1. Create a Firebase project (console.firebase.google.com) — the free **Spark** plan is enough.
+2. **Build → Authentication → Get started → Sign-in method → Anonymous → Enable.**
+3. **Build → Firestore Database → Create database** (production mode). Then open the **Rules** tab, paste in everything from [`firestore.rules`](firestore.rules), and click **Publish**.
+4. **AI Services → AI Logic → Get started**, choose the **Gemini Developer API** (free tier).
+   If the setup turns on App Check enforcement for AI Logic, go to **App Check → APIs → Firebase AI Logic** and choose **Unenforce** (or add a reCAPTCHA v3 key as `recaptchaSiteKey` in the config).
+5. **Project settings → Your apps → Web (</>)**, register an app, and copy the `firebaseConfig` values into
+   [`app/src/main/assets/www/firebase-config.js`](app/src/main/assets/www/firebase-config.js). Commit — a new APK builds automatically.
+
+The profile screen shows **🟢 Live** once it's connected.
+
 ## Project layout
 ```
-app/src/main/assets/www/index.html   ← the whole app UI (HTML/CSS/JS, works offline)
-app/src/main/java/.../MainActivity.java ← Android WebView wrapper (camera/gallery + back button)
-.github/workflows/build-apk.yml      ← builds the APK and publishes a release
+app/src/main/assets/www/index.html          ← the app UI (HTML/CSS/JS)
+app/src/main/assets/www/firebase-config.js  ← your Firebase config (empty = demo mode)
+web/cloud.js                                ← Firebase: accounts, matching, chat, Gemini photo detection
+firestore.rules                             ← database security rules (paste into Firebase console)
+app/src/main/java/.../MainActivity.java     ← Android wrapper (camera, location, back button)
+.github/workflows/build-apk.yml             ← bundles Firebase, builds the APK, publishes a release
 ```
-To change the app, edit `index.html` and push. A new APK builds automatically. You can also open `index.html` in any browser to preview it.
 
-## Current limits (v1)
-- **Nearby cooks are demo profiles** stored in the app. Real matching between phones needs a backend (e.g. Firebase for accounts, pantries, likes and chat). The matching engine (`duoOptions` / `buildDeck`) is already written to work with real profiles.
-- **Photo → ingredients is manual tagging.** Automatic food recognition needs an online vision API or an on-device ML model.
-- Recipe library: 42 built-in recipes.
+## How live matching works
+- Each person's profile and pantry are saved to Firestore, with their location rounded to about 3 miles.
+- The deck shows cooks within roughly 40 miles (or anywhere, which you can switch in the profile), and each card is a meal you can make together.
+- A swipe right saves a **like** for *that person + that meal*. If they've liked the same meal with you, a **match** is created. The security rules only allow a match when both likes exist.
+- Cards from people who already liked you show **💖 wants to cook this!**
+- Chats update in real time. Unmatch, block & report, and safety tips are in the chat's ⋯ menu.
+
+## Current limits
+- No push notifications yet: new matches and messages appear when the app is open.
+- Accounts are anonymous and tied to the phone. Uninstalling the app loses the account.
+- Photo detection needs internet and uses Gemini's free tier, which is rate-limited.

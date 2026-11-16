@@ -21,6 +21,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Bundle Firebase cloud layer
+        working-directory: web
+        run: |
+          npm install --no-audit --no-fund --no-save firebase@12 esbuild@0.25
+          npx esbuild cloud.js --bundle --format=iife --minify --target=chrome90 \
+            --outfile=../app/src/main/assets/www/cloud.bundle.js
+          ls -la ../app/src/main/assets/www/
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
